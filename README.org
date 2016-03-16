@@ -1,0 +1,15 @@
+* FuriousPlotter
+  Simple pyROOT interface for drawing everyday histograms
+
+** available plots:
+   - Histogram: 1D, 2D.
+   - Profile.
+   - Efficiency.
+
+** available macros:
+   - *setStyle.C*: standard style derived from CMS setTDRStyle.C.
+   - *CMS_lumi.C*: CMS canvas custumization routine.
+
+** available template configuration:
+   - *baseSB*: blue/red plots for signal/backgound comparison.
+   - *baseDataMC*: simple data/simulation comparison.
