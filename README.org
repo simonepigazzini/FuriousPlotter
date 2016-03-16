@@ -1,6 +1,10 @@
 * FuriousPlotter
   Simple pyROOT interface for drawing everyday histograms
 
+** dependencies:
+   - ROOT6
+   - CfgManager: https://github.com/simonepigazzini/CfgManager.git
+
 ** available plots:
    - Histogram: 1D, 2D.
    - Profile.
@@ -8,8 +12,8 @@
 
 ** available macros:
    - *setStyle.C*: standard style derived from CMS setTDRStyle.C.
-   - *CMS_lumi.C*: CMS canvas custumization routine.
+   - *CMS_lumi.C*: CMS canvas customization routine.
 
 ** available template configuration:
-   - *baseSB*: blue/red plots for signal/backgound comparison.
+   - *baseSB*: blue/red plots for signal/background comparison.
    - *baseDataMC*: simple data/simulation comparison.
