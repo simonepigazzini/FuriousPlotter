@@ -203,6 +203,7 @@ def main():
 
     # GET THE HISTOGRAMS
     for plot in cfg.GetOpt(vstring)("draw.plots"):
+        printMessage("Drawing <"+colors.CYAN+plot+colors.DEFAULT+">", 1)
         if cfg.OptExist(plot+".preProc"):
             processLines(cfg.GetOpt(vstring)(plot+".preProc"))
         c1 = ROOT.TCanvas("cnv_"+plot)
@@ -249,7 +250,6 @@ def main():
             histos[histo_key].SetTitle(cfg.GetOpt(histo_key+".title") if cfg.OptExist(histo_key+".title") else "")
         
         # DRAW CANVAS
-        printMessage("Drawing <"+colors.CYAN+plot+colors.DEFAULT+">", 1)
         c1.cd()
         draw_opt = cfg.GetOpt(std.string)(key_max+".drawOptions") if cfg.OptExist(key_max+".drawOptions") else ""            
         if "eff" in plot_type:
