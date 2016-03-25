@@ -50,10 +50,10 @@ def makeEfficiencyHisto(cfg, histos, histo_file, histo_key):
     "Exploit TGraphAsymErrors to generate a efficiency histogram with the right errors"
     
     if cfg.OptExist(histo_key+".src", 2):
-        num = histo_file.Get(cfg.GetOpt(histo_key+".src", 1))
-        den = histo_file.Get(cfg.GetOpt(histo_key+".src", 2))
+        num = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))
+        den = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 2))
     else:
-        histo_obj = histo_file.Get(cfg.GetOpt(histo_key+".src", 1))                    
+        histo_obj = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))                    
         if histo_obj.ClassName() != "TTree":
             printMessage(histo_obj+" is not of type TTree", -1)
             exit(0)
@@ -62,9 +62,9 @@ def makeEfficiencyHisto(cfg, histos, histo_file, histo_key):
         num = ROOT.TH1F("num", histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
         den = ROOT.TH1F("den", histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
 
-        var = cfg.GetOpt(histo_key+".var")
-        cut = cfg.GetOpt(histo_key+".cut")
-        sel = cfg.GetOpt(histo_key+".selection")
+        var = cfg.GetOpt(std.string)(histo_key+".var")
+        cut = cfg.GetOpt(std.string)(histo_key+".cut")
+        sel = cfg.GetOpt(std.string)(histo_key+".selection")
 
         printMessage("efficiency of: "+sel+" && ["+cut+"]", 0)
         histo_obj.Project("num", var, sel+" && "+cut)
@@ -85,6 +85,41 @@ def makeEfficiencyHisto(cfg, histos, histo_file, histo_key):
         num.Delete()
         den.Delete()
 
+###---build efficiency histogram--------------------------------------
+def makeSlicesHisto(cfg, histos, histo_file, histo_key, name, axis):
+    "Exploit TGraphAsymErrors to generate a efficiency histogram with the right errors"
+    
+    histo_obj = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))                    
+    if histo_obj.ClassName() != "TTree":
+        printMessage(histo_obj+" is not of type TTree", -1)
+        exit(0)
+
+    bins = cfg.GetOpt(vstring)(histo_key+".bins")
+    if len(bins) < 6:
+        printMessage("bins should contains 6 elements: nbinsx, xmin, xmax, nbinsy, ymin, ymax", -1)
+        exit(0)
+        
+    h2D = ROOT.TH2D(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                    int(bins[3]), float(bins[4]), float(bins[5]))
+
+    # draw 2D histo
+    var = cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
+    cut = cfg.GetOpt(std.string)(histo_key+".cut")
+    histo_obj.Draw(var, cut)
+
+    if axis == "X":
+        h2D.FitSlicesX()
+        param = cfg.GetOpt(std.string)(histo_key+".fitParam")        
+        histos[histo_key] = ROOT.TH1D(ROOT.gDirectory.Get(name+"_"+param))        
+    elif axis == "Y":
+        h2D.FitSlicesY()
+        param = cfg.GetOpt(std.string)(histo_key+".fitParam")
+        histos[histo_key] = ROOT.TH1D(ROOT.gDirectory.Get(name+"_"+param))
+
+    # apply graphical options
+    setStyle(cfg, histo_key, histos[histo_key])
+                        
+    h2D.Delete()
         
 ###---get histogram from tree-------------------------------------------
 def drawHistoFromTTree(cfg, histos, histo_obj, histo_key, name):
@@ -101,8 +136,8 @@ def drawHistoFromTTree(cfg, histos, histo_obj, histo_key, name):
                                       int(bins[3]), float(bins[4]), float(bins[5]))
 
     # draw histo
-    var = cfg.GetOpt(histo_key+".var")+">>"+name
-    cut = cfg.GetOpt(histo_key+".cut")
+    var = cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
+    cut = cfg.GetOpt(std.string)(histo_key+".cut")
     histo_obj.Draw(var, cut)
 
     # apply graphical options
@@ -147,8 +182,8 @@ def buildLegend(cfg, plot, histos, key_max):
     for entry in entries:
         histo_key = plot+"."+entry
         if cfg.OptExist(histo_key+".legendEntry", 0):
-            label = cfg.GetOpt(histo_key+".legendEntry", 0)
-            opt = cfg.GetOpt(histo_key+".legendEntry", 1) if cfg.OptExist(histo_key+".legendEntry", 1) else "lpf"
+            label = cfg.GetOpt(std.string)(histo_key+".legendEntry", 0)
+            opt = cfg.GetOpt(std.string)(histo_key+".legendEntry", 1) if cfg.OptExist(histo_key+".legendEntry", 1) else "lpf"
             lg.AddEntry(histos[histo_key].GetName(), label, opt)
 
     return lg
@@ -158,20 +193,22 @@ def finalizeCanvas(cnv, cfg, plot):
     "Finalize canvas: macro executed within this function must take a TPad* as first argument"
 
     for post_proc in cfg.GetOpt(vstring)(plot+".postProc"):
-        macro = cfg.GetOpt(std.string)(post_proc+".macro")
+        load = cfg.GetOpt(post_proc+".load") if cfg.OptExist(post_proc+".load") else cfg.GetOpt(post_proc+".macro")+".C"
+        macro = cfg.GetOpt(post_proc+".macro")
         line = macro+"("+cnv.GetName()
         for arg in cfg.GetOpt(vstring)(post_proc+".arguments"):
             line += ","+arg
         line += ")"
 
         printMessage(line, 0)
+        ROOT.gROOT.LoadMacro(load)
         ROOT.gROOT.ProcessLine(line)
 
 ###---Print canvas----------------------------------------------------
 def saveCanvasAs(cnv, cfg, name):
     "Print canvas to specified file format"
 
-    outDir = cfg.GetOpt(std.string)("draw.outDir") if cfg.OptExist("draw.outDir") else "plots"
+    outDir = cfg.GetOpt("draw.outDir") if cfg.OptExist("draw.outDir") else "plots"
     
     subprocess.getoutput("mkdir -p "+outDir)
     for ext in cfg.GetOpt(vstring)("draw.saveAs"):
@@ -179,9 +216,10 @@ def saveCanvasAs(cnv, cfg, name):
         
 ###---main function---------------------------------------------------
 def main():
+    
     ROOT.gROOT.SetBatch(True)
     ROOT.gSystem.Load("CfgManagerDict.so")
-
+    
     parser = argparse.ArgumentParser (description = 'Draw plots from ROOT files')
     parser.add_argument('-m', '--mod', type=str, default='', help='config file modifiers')
     parser.add_argument('-c', '--cfg', default='', help='cfg file')
@@ -199,9 +237,13 @@ def main():
     cfg.Print()
 
     # LOAD PLUGINS (for preproc, style and postproc)
-    processLines(cfg.GetOpt(vstring)("draw.pluginMacros"))
+    if cfg.OptExist("draw.pluginMacros"):
+        processLines(cfg.GetOpt(vstring)("draw.pluginMacros"))
 
     # GET THE HISTOGRAMS
+    cfg.GetOpt("draw.plots")
+    cfg.GetOpt(std.string)("draw.plots")
+    cfg.GetOpt(float)("draw.plots")
     for plot in cfg.GetOpt(vstring)("draw.plots"):
         printMessage("Drawing <"+colors.CYAN+plot+colors.DEFAULT+">", 1)
         if cfg.OptExist(plot+".preProc"):
@@ -213,42 +255,70 @@ def main():
         key_min=""
         for histo in cfg.GetOpt(vstring)(plot+".histos"):
             histo_key = plot+"."+histo
-            histo_file = ROOT.TFile.Open(cfg.GetOpt(histo_key+".src"))
+            histo_file = ROOT.TFile.Open(cfg.GetOpt(std.string)(histo_key+".src"))
             if not histo_file:
-                printMessage("file "+colors.CYAN+cfg.GetOpt(histo_key+".src")+colors.DEFAULT+" not found.", -1)
+                printMessage("file "+colors.CYAN+cfg.GetOpt(std.string)(histo_key+".src")+colors.DEFAULT+" not found.", -1)
              
             # efficiency plot
             if "eff" in plot_type:
                 printMessage("Efficiency histogram", 1)
 
                 makeEfficiencyHisto(cfg, histos, histo_file, histo_key)
-                    
+
+            # slices plots
+            if "x-slices" in plot_type:
+                printMessage("Fit slices histogram", 1)
+
+                makeSlicesHisto(cfg, histos, histo_file, histo_key, plot+"_"+histo, "X")
+
+            if "y-slices" in plot_type:
+                printMessage("Fit slices histogram", 1)
+
+                makeSlicesHisto(cfg, histos, histo_file, histo_key, plot+"_"+histo, "Y")
+
+            # multiple graphs
+            if "graphs" in plot_type:
+                if not histos["mg"]:
+                    histos["mg"] = ROOT.TMultigraph("mg", "")
+
+                # add graph
+                ROOT.gDirectory.Append(histo_obj)
+                setStyle(cfg, histo_key, histo_obj)
+                histos["mg"].Add(histo_obj)
+                histo_key = "mg"                
+            
             # plain plot
             else:
-                histo_obj = histo_file.Get(cfg.GetOpt(histo_key+".src", 1))
+                histo_obj = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))
                 # Draw from TTree
                 if histo_obj.ClassName() == "TTree":
                     drawHistoFromTTree(cfg, histos, histo_obj, histo_key, plot+"_"+histo)
                 # get has it is from source file
+                elif "TGraph" in histo_obj.ClassName():
+                    ROOT.gDirectory.Append(histo_obj)
+                    setStyle(cfg, histo_key, histo_obj)
+                    histos[histo_key] = histo_obj.Clone()
+                    histos[histo_key].SetName(plot+"_"+histo)
                 else:
-                    histos[histo_key] = histo_obj
+                    histos[histo_key] = histo_obj                    
                     # apply graphical options
                     setStyle(cfg, histo_key, histos[histo_key])
-
                     # detach from original file
                     histos[histo_key].SetDirectory(0)
 
             # save histograms with the max/min values
-            if key_max == "" or (histos[histo_key].GetMaximum() > histos[key_max].GetMaximum()
-                                 and histos[histo_key].ClassName() == histos[key_max].ClassName()):                    
+            if key_max == "" or ("Graph" not in histo_obj.ClassName()
+                                 and histos[histo_key].ClassName() == histos[key_max].ClassName()
+                                 and histos[histo_key].GetMaximum() > histos[key_max].GetMaximum()):
                 key_max = histo_key
-            if key_min == "" or (histos[histo_key].GetMinimum() < histos[key_max].GetMinimum()
-                                 and histos[histo_key].ClassName() == histos[key_max].ClassName()):                    
+            if key_min == "" or ("Graph" not in histo_obj.ClassName()
+                                 and histos[histo_key].ClassName() == histos[key_min].ClassName()
+                                 and histos[histo_key].GetMinimum() < histos[key_min].GetMinimum()):
                 key_min = histo_key
 
             # set histo title
-            histos[histo_key].SetTitle(cfg.GetOpt(histo_key+".title") if cfg.OptExist(histo_key+".title") else "")
-        
+            histos[histo_key].SetTitle(cfg.GetOpt(std.string)(histo_key+".title") if cfg.OptExist(histo_key+".title") else "")
+            
         # DRAW CANVAS
         c1.cd()
         draw_opt = cfg.GetOpt(std.string)(key_max+".drawOptions") if cfg.OptExist(key_max+".drawOptions") else ""            
@@ -274,7 +344,8 @@ def main():
             if "eff" not in plot_type:
                 axis = "Y" if histos[histo_key].ClassName() in ["TH1F", "TProfile"] else "Z"
                 # set default min/max
-                histos[histo_key].SetAxisRange(min_val, max_val*1.2, axis)                
+                if "TGraph" not in histo_obj.ClassName():
+                    histos[histo_key].SetAxisRange(min_val, max_val*1.2, axis)                
             if cfg.OptExist(histo_key+".drawOptions"):
                 draw_opt += cfg.GetOpt(std.string)(histo_key+".drawOptions")
             if cfg.OptExist(histo_key+".norm"):
