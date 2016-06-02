@@ -48,7 +48,8 @@ def processLines(lines):
 ###---build efficiency histogram--------------------------------------
 def makeEfficiencyHisto(cfg, histos, histo_file, histo_key):
     "Exploit TGraphAsymErrors to generate a efficiency histogram with the right errors"
-    
+
+    ###SBAGLIATO!
     if cfg.OptExist(histo_key+".src", 2):
         num = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))
         den = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 2))
@@ -57,11 +58,15 @@ def makeEfficiencyHisto(cfg, histos, histo_file, histo_key):
         if histo_obj.ClassName() != "TTree":
             printMessage(histo_obj+" is not of type TTree", -1)
             exit(0)
-
+            
         bins = cfg.GetOpt(vstring)(histo_key+".bins")
         num = ROOT.TH1F("num", histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
         den = ROOT.TH1F("den", histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
-
+        if "Xaxis" not in histos.keys():
+            histos["Xaxis"] = ROOT.TH1F("Xaxis", cfg.GetOpt(histo_key+".title"), int(bins[0]), float(bins[1]), float(bins[2]))
+            ROOT.gDirectory.Append(histos["Xaxis"])
+            setStyle(cfg, histo_key, histos["Xaxis"])
+            
         var = cfg.GetOpt(std.string)(histo_key+".var")
         cut = cfg.GetOpt(std.string)(histo_key+".cut")
         sel = cfg.GetOpt(std.string)(histo_key+".selection")
@@ -77,14 +82,14 @@ def makeEfficiencyHisto(cfg, histos, histo_file, histo_key):
 
         # apply graphical options
         setStyle(cfg, histo_key, histos[histo_key])
-        
+
         # fixed range for efficiency plots
         histos[histo_key].SetMinimum(0)
-        histos[histo_key].SetMaximum(1.05)
-                
+        histos[histo_key].SetMaximum(1.05)        
+
         num.Delete()
         den.Delete()
-
+        
 ###---build efficiency histogram--------------------------------------
 def makeSlicesHisto(cfg, histos, histo_file, histo_key, name, axis):
     "Exploit TGraphAsymErrors to generate a efficiency histogram with the right errors"
@@ -134,10 +139,14 @@ def drawHistoFromTTree(cfg, histos, histo_obj, histo_key, name):
     elif len(bins) == 6:
         histos[histo_key] = ROOT.TH2F(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                       int(bins[3]), float(bins[4]), float(bins[5]))
+    elif len(bins) == 8:
+        histos[histo_key] = ROOT.TProfile2D(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                            int(bins[3]), float(bins[4]), float(bins[5]),
+                                            float(bins[6]), float(bins[7]))
 
     # draw histo
     var = cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
-    cut = cfg.GetOpt(std.string)(histo_key+".cut")
+    cut = cfg.GetOpt(std.string)(histo_key+".cut") if cfg.OptExist(histo_key+".cut") else ""
     histo_obj.Draw(var, cut)
 
     # apply graphical options
@@ -251,19 +260,24 @@ def main():
         c1 = ROOT.TCanvas("cnv_"+plot)
         plot_type = cfg.GetOpt(vstring)(plot+".type") if cfg.OptExist(plot+".type") else ""
         histos={}
+        histo_files={}
         key_max=""
         key_min=""
         for histo in cfg.GetOpt(vstring)(plot+".histos"):
             histo_key = plot+"."+histo
-            histo_file = ROOT.TFile.Open(cfg.GetOpt(std.string)(histo_key+".src"))
+            if ROOT.gDirectory.GetName()=="Rint" or ROOT.gDirectory.GetName() != cfg.GetOpt(std.string)(histo_key+".src"):
+                histo_files[histo_key] = ROOT.TFile.Open(cfg.GetOpt(std.string)(histo_key+".src"))
+                histo_file = histo_files[histo_key]
             if not histo_file:
                 printMessage("file "+colors.CYAN+cfg.GetOpt(std.string)(histo_key+".src")+colors.DEFAULT+" not found.", -1)
-             
+
             # efficiency plot
             if "eff" in plot_type:
                 printMessage("Efficiency histogram", 1)
 
                 makeEfficiencyHisto(cfg, histos, histo_file, histo_key)
+
+                key_max = "Xaxis"
 
             # slices plots
             if "x-slices" in plot_type:
@@ -286,9 +300,9 @@ def main():
                 setStyle(cfg, histo_key, histo_obj)
                 histos["mg"].Add(histo_obj)
                 histo_key = "mg"                
-            
+                
             # plain plot
-            else:
+            if len(plot_type) == 0:
                 histo_obj = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))
                 # Draw from TTree
                 if histo_obj.ClassName() == "TTree":
@@ -307,11 +321,11 @@ def main():
                     histos[histo_key].SetDirectory(0)
 
             # save histograms with the max/min values
-            if key_max == "" or ("Graph" not in histo_obj.ClassName()
+            if key_max == "" or ("eff" not in plot_type and "Graph" not in histo_obj.ClassName()
                                  and histos[histo_key].ClassName() == histos[key_max].ClassName()
                                  and histos[histo_key].GetMaximum() > histos[key_max].GetMaximum()):
                 key_max = histo_key
-            if key_min == "" or ("Graph" not in histo_obj.ClassName()
+            if key_min == "" or ("eff" not in plot_type and "Graph" not in histo_obj.ClassName()
                                  and histos[histo_key].ClassName() == histos[key_min].ClassName()
                                  and histos[histo_key].GetMinimum() < histos[key_min].GetMinimum()):
                 key_min = histo_key
@@ -323,7 +337,10 @@ def main():
         c1.cd()
         draw_opt = cfg.GetOpt(std.string)(key_max+".drawOptions") if cfg.OptExist(key_max+".drawOptions") else ""            
         if "eff" in plot_type:
-            histos[key_max].Draw("AP")
+            print(histos[key_max], key_max)
+            histos[key_max].SetLineColor(0)
+            histos[key_max].SetLineStyle(0)
+            histos[key_max].Draw()
             # set X axis range
             bins = cfg.GetOpt(vstring)(histo_key+".bins")
             histos[key_max].GetXaxis().SetRangeUser(float(bins[1]), float(bins[2]))
@@ -341,10 +358,12 @@ def main():
         max_val = max_val*cfg.GetOpt(float)(plot+".extraSpaceAbove") if cfg.OptExist(plot+".extraSpaceAbove") else max_val
         for histo in cfg.GetOpt(vstring)(plot+".histos"):
             histo_key = plot+"."+histo
+            if "eff" in plot_type and histo_key == key_max:
+                continue
             if "eff" not in plot_type:
                 axis = "Y" if histos[histo_key].ClassName() in ["TH1F", "TProfile"] else "Z"
                 # set default min/max
-                if "TGraph" not in histo_obj.ClassName():
+                if "TGraph" not in histos[histo_key].ClassName():
                     histos[histo_key].SetAxisRange(min_val, max_val*1.2, axis)                
             if cfg.OptExist(histo_key+".drawOptions"):
                 draw_opt += cfg.GetOpt(std.string)(histo_key+".drawOptions")
