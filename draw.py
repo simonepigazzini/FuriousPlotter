@@ -129,32 +129,29 @@ def makeSlicesHisto(cfg, histos, histo_file, histo_key, name, axis):
 ###---get histogram from tree-------------------------------------------
 def drawHistoFromTTree(cfg, histos, histo_obj, histo_key, name):
     "Draw histograms from TTree, histogram type is guessed from specified binning"
-    
-    bins = cfg.GetOpt(vstring)(histo_key+".bins")
-    if len(bins) == 3:
-        histos[histo_key] = ROOT.TH1F(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
-    elif len(bins) == 5:
-        histos[histo_key] = ROOT.TProfile(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                          float(bins[3]), float(bins[4]))
-    elif len(bins) == 6:
-        histos[histo_key] = ROOT.TH2F(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                      int(bins[3]), float(bins[4]), float(bins[5]))
-    elif len(bins) == 8:
-        histos[histo_key] = ROOT.TProfile2D(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                            int(bins[3]), float(bins[4]), float(bins[5]),
-                                            float(bins[6]), float(bins[7]))
 
+    if histo_key not in histos.keys():
+        bins = cfg.GetOpt(vstring)(histo_key+".bins")
+        if len(bins) == 3:
+            histos[histo_key] = ROOT.TH1F(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
+        elif len(bins) == 5:
+            histos[histo_key] = ROOT.TProfile(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                              float(bins[3]), float(bins[4]))
+        elif len(bins) == 6:
+            histos[histo_key] = ROOT.TH2F(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                          int(bins[3]), float(bins[4]), float(bins[5]))
+        elif len(bins) == 8:
+            histos[histo_key] = ROOT.TProfile2D(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                                int(bins[3]), float(bins[4]), float(bins[5]),
+                                                float(bins[6]), float(bins[7]))
+            
     # draw histo
-    var = cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
+    var = cfg.GetOpt(std.string)(histo_key+".var")+">>+"+name
     cut = cfg.GetOpt(std.string)(histo_key+".cut") if cfg.OptExist(histo_key+".cut") else ""
     histo_obj.Draw(var, cut)
 
     # apply graphical options
     setStyle(cfg, histo_key, histos[histo_key])
-
-    # detach from original TFile
-    histos[histo_key].SetDirectory(0)
-
         
 ###---set histogram style---------------------------------------------
 def setStyle(cfg, key, histo):
@@ -303,23 +300,36 @@ def main():
                 
             # plain plot
             if len(plot_type) == 0:
-                histo_obj = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))
-                # Draw from TTree
-                if histo_obj.ClassName() == "TTree":
-                    drawHistoFromTTree(cfg, histos, histo_obj, histo_key, plot+"_"+histo)
-                # get has it is from source file
-                elif "TGraph" in histo_obj.ClassName():
-                    ROOT.gDirectory.Append(histo_obj)
-                    setStyle(cfg, histo_key, histo_obj)
-                    histos[histo_key] = histo_obj.Clone()
-                    histos[histo_key].SetName(plot+"_"+histo)
-                else:
-                    histos[histo_key] = histo_obj                    
-                    # apply graphical options
-                    setStyle(cfg, histo_key, histos[histo_key])
-                    # detach from original file
-                    histos[histo_key].SetDirectory(0)
+                histo_names = cfg.GetOpt(vstring)(histo_key+".src")
+                histo_names.erase(histo_names.begin())
+                # loop over different sources
+                for name in histo_names:
+                    histo_obj = histo_file.Get(name)
+                    # Draw from TTree(s)
+                    if histo_obj.ClassName() == "TTree":
+                        drawHistoFromTTree(cfg, histos, histo_obj, histo_key, plot+"_"+histo)
+                    # get has it is from source file (TGraph)
+                    elif "TGraph" in histo_obj.ClassName():
+                        if histo_key in histos.keys():
+                            histos[histo_key].Add(histo_obj)
+                        else:
+                            ROOT.gDirectory.Append(histo_obj)
+                            setStyle(cfg, histo_key, histo_obj)
+                            histos[histo_key] = histo_obj.Clone()
+                            histos[histo_key].SetName(plot+"_"+histo)
+                    # get has it is from source file (Histogram)
+                    else:
+                        if histo_key in histos.keys():
+                            histos[histo_key].Add(histo_obj)
+                        else:
+                            histos[histo_key] = histo_obj                    
+                            # apply graphical options
+                            setStyle(cfg, histo_key, histos[histo_key])
 
+                # detach from original TFile
+                histos[histo_key].SetDirectory(0)
+
+                            
             # save histograms with the max/min values
             if key_max == "" or ("eff" not in plot_type and "Graph" not in histo_obj.ClassName()
                                  and histos[histo_key].ClassName() == histos[key_max].ClassName()
