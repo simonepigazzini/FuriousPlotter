@@ -313,10 +313,10 @@ def main():
                         if histo_key in histos.keys():
                             histos[histo_key].Add(histo_obj)
                         else:
-                            ROOT.gDirectory.Append(histo_obj)
-                            setStyle(cfg, histo_key, histo_obj)
                             histos[histo_key] = histo_obj.Clone()
                             histos[histo_key].SetName(plot+"_"+histo)
+                            ROOT.gDirectory.Append(histos[histo_key])
+                            setStyle(cfg, histo_key, histos[histo_key])
                     # get has it is from source file (Histogram)
                     else:
                         if histo_key in histos.keys():
@@ -327,7 +327,8 @@ def main():
                             setStyle(cfg, histo_key, histos[histo_key])
 
                 # detach from original TFile
-                histos[histo_key].SetDirectory(0)
+                if "TGraph" not in histo_obj.ClassName():
+                    histos[histo_key].SetDirectory(0)
 
                             
             # save histograms with the max/min values
