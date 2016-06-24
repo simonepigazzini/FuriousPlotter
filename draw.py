@@ -254,7 +254,7 @@ def main():
         printMessage("Drawing <"+colors.CYAN+plot+colors.DEFAULT+">", 1)
         if cfg.OptExist(plot+".preProc"):
             processLines(cfg.GetOpt(vstring)(plot+".preProc"))
-        c1 = ROOT.TCanvas("cnv_"+plot)
+        global_cnv = ROOT.TCanvas("cnv_"+plot)
         plot_type = cfg.GetOpt(vstring)(plot+".type") if cfg.OptExist(plot+".type") else ""
         histos={}
         histo_files={}
@@ -299,7 +299,7 @@ def main():
                 histo_key = "mg"                
                 
             # plain plot
-            if len(plot_type) == 0:
+            if len(plot_type) == 0 or 'ratio' in plot_type:
                 histo_names = cfg.GetOpt(vstring)(histo_key+".src")
                 histo_names.erase(histo_names.begin())
                 # loop over different sources
@@ -345,7 +345,31 @@ def main():
             histos[histo_key].SetTitle(cfg.GetOpt(std.string)(histo_key+".title") if cfg.OptExist(histo_key+".title") else "")
             
         # DRAW CANVAS
-        c1.cd()
+        global_cnv.cd()
+        #ratio plot
+        if "ratio" in plot_type:
+            global_cnv.Clear()
+            bottom_pannel_y = cfg.GetOpt(float)(plot+".ratio.bottomPanelY") if cfg.OptExist(plot+".ratio.bottomPanelY") else 0.3
+            top_pannel_y = cfg.GetOpt(float)(plot+".ratio.topPanelY") if cfg.OptExist(plot+".ratio.topPanelY") else 1
+            pad_histo = ROOT.TPad("pad_histo", "", 0, bottom_pannel_y, 1, top_pannel_y)
+            pad_ratio = ROOT.TPad("pad_ratio", "", 0, 0, 1, bottom_pannel_y)
+            pad_histo.Draw()
+            pad_ratio.Draw()
+
+            # compute and draw ratio
+            pad_ratio.cd()
+            h_ratio = histos[plot+"."+cfg.GetOpt(std.string)(plot+".ratio.num")].Clone()
+            h_ratio.SetName(plot+"_ratio")
+            h_ratio.Sumw2()
+            h_den = histos[plot+"."+cfg.GetOpt(std.string)(plot+".ratio.den")].Clone()
+            h_den.Sumw2()
+            h_ratio.Divide(h_den)
+            setStyle(cfg, plot+".ratio", h_ratio)
+            h_ratio.Draw(cfg.GetOpt(std.string)(plot+".ratio.drawOptions") if cfg.OptExist(plot+".ratio.drawOptions") else "EP")
+
+            # go back to histo pad
+            pad_histo.cd()
+        
         draw_opt = cfg.GetOpt(std.string)(key_max+".drawOptions") if cfg.OptExist(key_max+".drawOptions") else ""            
         if "eff" in plot_type:
             print(histos[key_max], key_max)
@@ -392,8 +416,8 @@ def main():
             
         # POST PROC (on the canvas)
         if cfg.OptExist(plot+".postProc"):
-            finalizeCanvas(c1, cfg, plot)
-        saveCanvasAs(c1, cfg, plot)
+            finalizeCanvas(global_cnv, cfg, plot)
+        saveCanvasAs(global_cnv, cfg, plot)
 
         # cleanup
         for key in histos:
