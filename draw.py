@@ -149,9 +149,6 @@ def drawHistoFromTTree(cfg, histos, histo_obj, histo_key, name):
     var = cfg.GetOpt(std.string)(histo_key+".var")+">>+"+name
     cut = cfg.GetOpt(std.string)(histo_key+".cut") if cfg.OptExist(histo_key+".cut") else ""
     histo_obj.Draw(var, cut)
-
-    # apply graphical options
-    setStyle(cfg, histo_key, histos[histo_key])
         
 ###---set histogram style---------------------------------------------
 def setStyle(cfg, key, histo):
@@ -323,8 +320,9 @@ def main():
                             histos[histo_key].Add(histo_obj)
                         else:
                             histos[histo_key] = histo_obj                    
-                            # apply graphical options
-                            setStyle(cfg, histo_key, histos[histo_key])
+
+                # apply graphical options
+                setStyle(cfg, histo_key, histos[histo_key])
 
                 # detach from original TFile
                 if "TGraph" not in histo_obj.ClassName():
