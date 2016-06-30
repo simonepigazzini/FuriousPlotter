@@ -53,6 +53,11 @@ def makeEfficiencyHisto(cfg, histos, histo_file, histo_key):
     if cfg.OptExist(histo_key+".src", 2):
         num = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))
         den = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 2))
+        if "Xaxis" not in histos.keys():
+            histos["Xaxis"] = ROOT.TH1F("Xaxis", cfg.GetOpt(histo_key+".title"),
+                                        num.GetNbinsX(), num.GetXaxis().GetXmin(), num.GetXaxis().GetXmax())
+            ROOT.gDirectory.Append(histos["Xaxis"])
+            setStyle(cfg, histo_key, histos["Xaxis"])        
     else:
         histo_obj = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))                    
         if histo_obj.ClassName() != "TTree":
@@ -75,20 +80,20 @@ def makeEfficiencyHisto(cfg, histos, histo_file, histo_key):
         histo_obj.Project("num", var, sel+" && "+cut)
         histo_obj.Project("den", var, cut)
 
-        # add eff histo to histograms list
-        histos[histo_key] = ROOT.TGraphAsymmErrors(num, den)
-        histos[histo_key].SetName(histo_key.replace(".", "_"))
-        ROOT.gDirectory.Append(histos[histo_key])
+    # add eff histo to histograms list
+    histos[histo_key] = ROOT.TGraphAsymmErrors(num, den)
+    histos[histo_key].SetName(histo_key.replace(".", "_"))
+    ROOT.gDirectory.Append(histos[histo_key])
 
-        # apply graphical options
-        setStyle(cfg, histo_key, histos[histo_key])
+    # apply graphical options
+    setStyle(cfg, histo_key, histos[histo_key])
 
-        # fixed range for efficiency plots
-        histos[histo_key].SetMinimum(0)
-        histos[histo_key].SetMaximum(1.05)        
+    # fixed range for efficiency plots
+    histos[histo_key].SetMinimum(0)
+    histos[histo_key].SetMaximum(1.05)        
 
-        num.Delete()
-        den.Delete()
+    num.Delete()
+    den.Delete()
         
 ###---build efficiency histogram--------------------------------------
 def makeSlicesHisto(cfg, histos, histo_file, histo_key, name, axis):
