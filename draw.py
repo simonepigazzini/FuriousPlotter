@@ -25,7 +25,7 @@ class colors:
 
 ###---message logger--------------------------------------------------
 def printMessage(msg, msg_type):
-    "Print colored information message"
+    """Print colored information message"""
 
     # info message
     if msg_type == 0:
@@ -36,186 +36,227 @@ def printMessage(msg, msg_type):
     # success
     elif msg_type == 1:
         print(colors.GREEN+"> FuriousPlotter: "+colors.DEFAULT+msg)
-    
-    
+
 ###---process C++ lines-----------------------------------------------
 def processLines(lines):
     "Process single lines of C++ source code. Useful for on-the-fly style settings"
     
     for line in lines:
         ROOT.gROOT.ProcessLine(line)
+        
+###---plot container class--------------------------------------------
+class FPPlot:
+    """Main class: contains all the objects belonging to a plot instance"""
 
-###---build efficiency histogram--------------------------------------
-def makeEfficiencyHisto(cfg, histos, histo_file, histo_key):
-    "Exploit TGraphAsymErrors to generate a efficiency histogram with the right errors"
+    ###---init function-----------------------------------------------
+    def __init__(self, cfg, plot_name):
+        self.name   = plot_name
+        self.cfg    = cfg
+        self.pads   = {}
+        self.histos = {}
+        
+    
+    ###---define pads-----------------------------------------------------
+    def processPads():
+        "Manage pads"
 
-    ###SBAGLIATO!
-    if cfg.OptExist(histo_key+".src", 2):
-        num = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))
-        den = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 2))
-    else:
-        histo_obj = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))                    
-        if histo_obj.ClassName() != "TTree":
-            printMessage(histo_obj+" is not of type TTree", -1)
+        # if no pad is specified, only the default global canvas is created
+        # histos defined under plots are attached to it
+        pads_.names = cfg.GetOpt(vstring)(self.name+".pads") if cfg.OptExist(self.name+".pads") else []
+
+        createPad(self.name)
+        for pad_name in pads_names:
+            createPad(self.name+"."+pad_name)
+        
+    ###---create pad------------------------------------------------------
+    def createPad(pad_name):
+        "Create pad and histos"
+
+        # get constructor size parameters
+        size = cfg.GetOpt(vstring)(pad_name+".size") if cfg.OptExist(pad_name+".size") else []
+        if pad_name == self.name:
+            if len(size) == 0:                        
+                pads[pad_name] = TCanvas(pad_name)
+            else if len(size) == 2:
+                pads[pad_name] = TCanvas(pad_name, "", float(size[0]), float(size[1]))                
+        else if len(size) == 4:
+            pads[pad_name] = TPad(pad_name, "", float(size[0]), float(size[1]), float(size[2]), float(size[3]))
+            pads[pad_name].Draw()
+        else:
+            printMessage("TPad size parameters not specified: "+pad_name, -1)
             exit(0)
             
-        bins = cfg.GetOpt(vstring)(histo_key+".bins")
-        num = ROOT.TH1F("num", histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
-        den = ROOT.TH1F("den", histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
-        if "Xaxis" not in histos.keys():
-            histos["Xaxis"] = ROOT.TH1F("Xaxis", cfg.GetOpt(histo_key+".title"), int(bins[0]), float(bins[1]), float(bins[2]))
-            ROOT.gDirectory.Append(histos["Xaxis"])
-            setStyle(cfg, histo_key, histos["Xaxis"])
-            
-        var = cfg.GetOpt(std.string)(histo_key+".var")
-        cut = cfg.GetOpt(std.string)(histo_key+".cut")
-        sel = cfg.GetOpt(std.string)(histo_key+".selection")
+    ###---build efficiency histogram--------------------------------------
+    def makeEfficiencyHisto(histo_file, histo_key):
+        "Exploit TGraphAsymErrors to generate a efficiency histogram with the right errors"
 
-        printMessage("efficiency of: "+sel+" && ["+cut+"]", 0)
-        histo_obj.Project("num", var, sel+" && "+cut)
-        histo_obj.Project("den", var, cut)
+        ###SBAGLIATO!
+        if cfg.OptExist(histo_key+".src", 2):
+            num = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))
+            den = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 2))
+        else:
+            histo_obj = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))                    
+            if histo_obj.ClassName() != "TTree":
+                printMessage(histo_obj+" is not of type TTree", -1)
+                exit(0)
+            
+            bins = cfg.GetOpt(vstring)(histo_key+".bins")
+            num = ROOT.TH1F("num", histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
+            den = ROOT.TH1F("den", histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
+            if "Xaxis" not in self.histos.keys():
+                self.histos["Xaxis"] = ROOT.TH1F("Xaxis", cfg.GetOpt(histo_key+".title"), int(bins[0]), float(bins[1]), float(bins[2]))
+                ROOT.gDirectory.Append(self.histos["Xaxis"])
+                setStyle(cfg, histo_key, self.histos["Xaxis"])
+            
+            var = cfg.GetOpt(std.string)(histo_key+".var")
+            cut = cfg.GetOpt(std.string)(histo_key+".cut")
+            sel = cfg.GetOpt(std.string)(histo_key+".selection")
+
+            printMessage("efficiency of: "+sel+" && ["+cut+"]", 0)
+            histo_obj.Project("num", var, sel+" && "+cut)
+            histo_obj.Project("den", var, cut)
 
         # add eff histo to histograms list
-        histos[histo_key] = ROOT.TGraphAsymmErrors(num, den)
-        histos[histo_key].SetName(histo_key.replace(".", "_"))
-        ROOT.gDirectory.Append(histos[histo_key])
+        self.histos[histo_key] = ROOT.TGraphAsymmErrors(num, den)
+        self.histos[histo_key].SetName(histo_key.replace(".", "_"))
+        ROOT.gDirectory.Append(self.histos[histo_key])
 
         # apply graphical options
-        setStyle(cfg, histo_key, histos[histo_key])
+        setStyle(cfg, histo_key, self.histos[histo_key])
 
         # fixed range for efficiency plots
-        histos[histo_key].SetMinimum(0)
-        histos[histo_key].SetMaximum(1.05)        
+        self.histos[histo_key].SetMinimum(0)
+        self.histos[histo_key].SetMaximum(1.05)        
 
         num.Delete()
         den.Delete()
         
-###---build efficiency histogram--------------------------------------
-def makeSlicesHisto(cfg, histos, histo_file, histo_key, name, axis):
-    "Exploit TGraphAsymErrors to generate a efficiency histogram with the right errors"
+    ###---build efficiency histogram--------------------------------------
+    def makeSlicesHisto(histo_file, histo_key, name, axis):
+        "Exploit TGraphAsymErrors to generate a efficiency histogram with the right errors"
     
-    histo_obj = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))                    
-    if histo_obj.ClassName() != "TTree":
-        printMessage(histo_obj+" is not of type TTree", -1)
-        exit(0)
+        histo_obj = histo_file.Get(cfg.GetOpt(std.string)(histo_key+".src", 1))                    
+        if histo_obj.ClassName() != "TTree":
+            printMessage(histo_obj+" is not of type TTree", -1)
+            exit(0)
 
-    bins = cfg.GetOpt(vstring)(histo_key+".bins")
-    if len(bins) < 6:
-        printMessage("bins should contains 6 elements: nbinsx, xmin, xmax, nbinsy, ymin, ymax", -1)
-        exit(0)
-        
-    h2D = ROOT.TH2D(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                    int(bins[3]), float(bins[4]), float(bins[5]))
-
-    # draw 2D histo
-    var = cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
-    cut = cfg.GetOpt(std.string)(histo_key+".cut")
-    histo_obj.Draw(var, cut)
-
-    if axis == "X":
-        h2D.FitSlicesX()
-        param = cfg.GetOpt(std.string)(histo_key+".fitParam")        
-        histos[histo_key] = ROOT.TH1D(ROOT.gDirectory.Get(name+"_"+param))        
-    elif axis == "Y":
-        h2D.FitSlicesY()
-        param = cfg.GetOpt(std.string)(histo_key+".fitParam")
-        histos[histo_key] = ROOT.TH1D(ROOT.gDirectory.Get(name+"_"+param))
-
-    # apply graphical options
-    setStyle(cfg, histo_key, histos[histo_key])
-                        
-    h2D.Delete()
-        
-###---get histogram from tree-------------------------------------------
-def drawHistoFromTTree(cfg, histos, histo_obj, histo_key, name):
-    "Draw histograms from TTree, histogram type is guessed from specified binning"
-
-    if histo_key not in histos.keys():
         bins = cfg.GetOpt(vstring)(histo_key+".bins")
-        if len(bins) == 3:
-            histos[histo_key] = ROOT.TH1F(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
-        elif len(bins) == 5:
-            histos[histo_key] = ROOT.TProfile(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                              float(bins[3]), float(bins[4]))
-        elif len(bins) == 6:
-            histos[histo_key] = ROOT.TH2F(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                          int(bins[3]), float(bins[4]), float(bins[5]))
-        elif len(bins) == 8:
-            histos[histo_key] = ROOT.TProfile2D(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                                int(bins[3]), float(bins[4]), float(bins[5]),
-                                                float(bins[6]), float(bins[7]))
-            
-    # draw histo
-    var = cfg.GetOpt(std.string)(histo_key+".var")+">>+"+name
-    cut = cfg.GetOpt(std.string)(histo_key+".cut") if cfg.OptExist(histo_key+".cut") else ""
-    histo_obj.Draw(var, cut)
+        if len(bins) < 6:
+            printMessage("bins should contains 6 elements: nbinsx, xmin, xmax, nbinsy, ymin, ymax", -1)
+            exit(0)
         
-###---set histogram style---------------------------------------------
-def setStyle(cfg, key, histo):
-    "Set style attribute of histograms"
+        h2D = ROOT.TH2D(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                        int(bins[3]), float(bins[4]), float(bins[5]))
+
+        # draw 2D histo
+        var = cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
+        cut = cfg.GetOpt(std.string)(histo_key+".cut")
+        histo_obj.Draw(var, cut)
+
+        if axis == "X":
+            h2D.FitSlicesX()
+            param = cfg.GetOpt(std.string)(histo_key+".fitParam")        
+            self.histos[histo_key] = ROOT.TH1D(ROOT.gDirectory.Get(name+"_"+param))        
+        elif axis == "Y":
+            h2D.FitSlicesY()
+            param = cfg.GetOpt(std.string)(histo_key+".fitParam")
+            self.histos[histo_key] = ROOT.TH1D(ROOT.gDirectory.Get(name+"_"+param))
+
+        # apply graphical options
+        setStyle(cfg, histo_key, self.histos[histo_key])
+        
+        h2D.Delete()
+        
+    ###---get histogram from tree-------------------------------------------
+    def drawHistoFromTTree(histo_obj, histo_key, name):
+        "Draw histograms from TTree, histogram type is guessed from specified binning"
+
+        if histo_key not in self.histos.keys():
+            bins = cfg.GetOpt(vstring)(histo_key+".bins")
+            if len(bins) == 3:
+                self.histos[histo_key] = ROOT.TH1F(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
+            elif len(bins) == 5:
+                self.histos[histo_key] = ROOT.TProfile(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                                  float(bins[3]), float(bins[4]))
+            elif len(bins) == 6:
+                self.histos[histo_key] = ROOT.TH2F(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                              int(bins[3]), float(bins[4]), float(bins[5]))
+            elif len(bins) == 8:
+                self.histos[histo_key] = ROOT.TProfile2D(name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                                    int(bins[3]), float(bins[4]), float(bins[5]),
+                                                    float(bins[6]), float(bins[7]))
+            
+        # draw histo
+        var = cfg.GetOpt(std.string)(histo_key+".var")+">>+"+name
+        cut = cfg.GetOpt(std.string)(histo_key+".cut") if cfg.OptExist(histo_key+".cut") else ""
+        histo_obj.Draw(var, cut)
+        
+    ###---set histogram style---------------------------------------------
+    def setStyle(key, histo):
+        "Set style attribute of histograms"
     
-    if cfg.OptExist(key+".graphicalOptions"):
-        for gopt in cfg.GetOpt(vstring)(key+".graphicalOptions"):
-            ROOT.gROOT.ProcessLine(histo.GetName()+"->"+gopt)
+        if cfg.OptExist(key+".graphicalOptions"):
+            for gopt in cfg.GetOpt(vstring)(key+".graphicalOptions"):
+                ROOT.gROOT.ProcessLine(histo.GetName()+"->"+gopt)
 
-###---legend----------------------------------------------------------
-def buildLegend(cfg, plot, histos, key_max):
-    "Build legend for current plot. Entry order is fixed by cfg file"
+    ###---legend----------------------------------------------------------
+    def buildLegend(key_max):
+        "Build legend for current plot. Entry order is fixed by cfg file"
 
-    if cfg.OptExist(plot+".legendXY"):
-        pos = cfg.GetOpt(vstring)(plot+".legendXY")
-    elif histos[key_max].ClassName() == "TH1F":
-        left_edge = histos[key_max].GetXaxis().GetXmin()
-        right_edge = histos[key_max].GetXaxis().GetXmax()
-        max_pos = histos[key_max].GetBinCenter(histos[key_max].GetMaximumBin())
-        if abs(max_pos-left_edge) < abs(right_edge-max_pos):
-            max_pos = (max_pos-left_edge)/(right_edge-left_edge)+ROOT.gStyle.GetPadLeftMargin()
-            pos = [max_pos+0.05, 0.6, 0.9, 0.9]
+        if cfg.OptExist(plot+".legendXY"):
+            pos = cfg.GetOpt(vstring)(plot+".legendXY")
+        elif self.histos[key_max].ClassName() == "TH1F":
+            left_edge = self.histos[key_max].GetXaxis().GetXmin()
+            right_edge = self.histos[key_max].GetXaxis().GetXmax()
+            max_pos = self.histos[key_max].GetBinCenter(self.histos[key_max].GetMaximumBin())
+            if abs(max_pos-left_edge) < abs(right_edge-max_pos):
+                max_pos = (max_pos-left_edge)/(right_edge-left_edge)+ROOT.gStyle.GetPadLeftMargin()
+                pos = [max_pos+0.05, 0.6, 0.9, 0.9]
+            else:
+                max_pos = (max_pos-left_edge)/(right_edge-left_edge)+ROOT.gStyle.GetPadLeftMargin()
+                pos = [0.05+ROOT.gStyle.GetPadLeftMargin(), 0.6, max_pos-0.2, 0.9]
         else:
-            max_pos = (max_pos-left_edge)/(right_edge-left_edge)+ROOT.gStyle.GetPadLeftMargin()
-            pos = [0.05+ROOT.gStyle.GetPadLeftMargin(), 0.6, max_pos-0.2, 0.9]
-    else:
-        pos = [0.6, 0.6, 0.9, 0.9]
+            pos = [0.6, 0.6, 0.9, 0.9]
 
-    head = cfg.GetOpt(plot+".legendHeader") if cfg.OptExist(plot+".legendHeader") else ""
-    lg = ROOT.TLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]), head)
-    lg.SetFillStyle(0)
+        head = cfg.GetOpt(plot+".legendHeader") if cfg.OptExist(plot+".legendHeader") else ""
+        lg = ROOT.TLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]), head)
+        lg.SetFillStyle(0)
 
-    entries = cfg.GetOpt(vstring)(plot+".legendEntries") if cfg.OptExist(plot+".legendEntries") else cfg.GetOpt(vstring)(plot+".histos")
-    for entry in entries:
-        histo_key = plot+"."+entry
-        if cfg.OptExist(histo_key+".legendEntry", 0):
-            label = cfg.GetOpt(std.string)(histo_key+".legendEntry", 0)
-            opt = cfg.GetOpt(std.string)(histo_key+".legendEntry", 1) if cfg.OptExist(histo_key+".legendEntry", 1) else "lpf"
-            lg.AddEntry(histos[histo_key].GetName(), label, opt)
+        entries = cfg.GetOpt(vstring)(plot+".legendEntries") if cfg.OptExist(plot+".legendEntries") else cfg.GetOpt(vstring)(plot+".self.histos")
+        for entry in entries:
+            histo_key = plot+"."+entry
+            if cfg.OptExist(histo_key+".legendEntry", 0):
+                label = cfg.GetOpt(std.string)(histo_key+".legendEntry", 0)
+                opt = cfg.GetOpt(std.string)(histo_key+".legendEntry", 1) if cfg.OptExist(histo_key+".legendEntry", 1) else "lpf"
+                lg.AddEntry(self.histos[histo_key].GetName(), label, opt)
 
-    return lg
+        return lg
     
-###---Finalize canvas-------------------------------------------------
-def finalizeCanvas(cnv, cfg, plot):
-    "Finalize canvas: macro executed within this function must take a TPad* as first argument"
+    ###---Finalize canvas-------------------------------------------------
+    def finalizeCanvas(cnv):
+        "Finalize canvas: macro executed within this function must take a TPad* as first argument"
 
-    for post_proc in cfg.GetOpt(vstring)(plot+".postProc"):
-        load = cfg.GetOpt(post_proc+".load") if cfg.OptExist(post_proc+".load") else cfg.GetOpt(post_proc+".macro")+".C"
-        macro = cfg.GetOpt(post_proc+".macro")
-        line = macro+"("+cnv.GetName()
-        for arg in cfg.GetOpt(vstring)(post_proc+".arguments"):
-            line += ","+arg
-        line += ")"
+        for post_proc in cfg.GetOpt(vstring)(plot+".postProc"):
+            load = cfg.GetOpt(post_proc+".load") if cfg.OptExist(post_proc+".load") else cfg.GetOpt(post_proc+".macro")+".C"
+            macro = cfg.GetOpt(post_proc+".macro")
+            line = macro+"("+cnv.GetName()
+            for arg in cfg.GetOpt(vstring)(post_proc+".arguments"):
+                line += ","+arg
+            line += ")"
 
-        printMessage(line, 0)
-        ROOT.gROOT.LoadMacro(load)
-        ROOT.gROOT.ProcessLine(line)
+            printMessage(line, 0)
+            ROOT.gROOT.LoadMacro(load)
+            ROOT.gROOT.ProcessLine(line)
 
-###---Print canvas----------------------------------------------------
-def saveCanvasAs(cnv, cfg, name):
-    "Print canvas to specified file format"
+    ###---Print canvas----------------------------------------------------
+    def saveCanvasAs(cnv, cfg, name):
+        "Print canvas to specified file format"
 
-    outDir = cfg.GetOpt("draw.outDir") if cfg.OptExist("draw.outDir") else "plots"
+        outDir = cfg.GetOpt("draw.outDir") if cfg.OptExist("draw.outDir") else "plots"
     
-    subprocess.getoutput("mkdir -p "+outDir)
-    for ext in cfg.GetOpt(vstring)("draw.saveAs"):
-        cnv.Print(outDir+"/"+name+"."+ext, ext)
+        subprocess.getoutput("mkdir -p "+outDir)
+        for ext in cfg.GetOpt(vstring)("draw.saveAs"):
+            cnv.Print(outDir+"/"+name+"."+ext, ext)
         
 ###---main function---------------------------------------------------
 def main():
@@ -242,15 +283,18 @@ def main():
     # LOAD PLUGINS (for preproc, style and postproc)
     if cfg.OptExist("draw.pluginMacros"):
         processLines(cfg.GetOpt(vstring)("draw.pluginMacros"))
-
+    
     # GET THE HISTOGRAMS
-    cfg.GetOpt("draw.plots")
-    cfg.GetOpt(std.string)("draw.plots")
-    cfg.GetOpt(float)("draw.plots")
     for plot in cfg.GetOpt(vstring)("draw.plots"):
-        printMessage("Drawing <"+colors.CYAN+plot+colors.DEFAULT+">", 1)
+        printMessage("Drawing <"+colors.CYAN+plot+colors.DEFAULT+">", 1)        
         if cfg.OptExist(plot+".preProc"):
             processLines(cfg.GetOpt(vstring)(plot+".preProc"))
+        # get list of pads, if no pads is specified assume single pad plot
+        pads={}
+
+        # Process PADS
+        processPads(cfg, plot, pads_names, pads)
+                        
         global_cnv = ROOT.TCanvas("cnv_"+plot)
         plot_type = cfg.GetOpt(vstring)(plot+".type") if cfg.OptExist(plot+".type") else ""
         histos={}
