@@ -324,7 +324,8 @@ def main():
                         if histo_key in histos.keys():
                             histos[histo_key].Add(histo_obj)
                         else:
-                            histos[histo_key] = histo_obj                    
+                            histos[histo_key] = histo_obj.Clone()
+                            ROOT.gDirectory.Append(histos[histo_key])
 
                 # apply graphical options
                 setStyle(cfg, histo_key, histos[histo_key])
