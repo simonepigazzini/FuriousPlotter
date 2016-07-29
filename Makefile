@@ -5,6 +5,7 @@ install:
 	cp cfg/* $(rootsys)/etc/root/plugins/FuriousPlotter/
 	cp macros/* $(rootsys)/share/root/macros/
 	cp draw.py $(rootsys)/bin/
+	cp operations.py $(rootsys)/lib/root
 
 uninstall:
 	rm -r $(rootsys)/etc/root/plugins/FuriousPlotter/
