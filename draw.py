@@ -116,10 +116,12 @@ class FPPlot:
         size = self.cfg.GetOpt(vstring)(pad_name+".size") if self.cfg.OptExist(pad_name+".size") else []
         if pad_name == self.name:
             if len(size) == 0:                        
-                self.pads[pad_name] = ROOT.TCanvas(pad_name.replace(".", "_"))                
+                self.pads[pad_name] = ROOT.TCanvas(pad_name.replace(".", "_"))
             elif len(size) == 2:
                 self.pads[pad_name] = ROOT.TCanvas(pad_name.replace(".", "_"), "", float(size[0]), float(size[1]))
-            ROOT.gDirectory.Append(self.pads[pad_name])
+            else:
+                printMessage("Global canvas creation: option <size> must contain 0 or 2 values", -1)
+            ROOT.gDirectory.Append(self.pads[self.name])
         elif len(size) == 4:
             self.pads[pad_name] = ROOT.TPad(pad_name.replace(".", "_"), "", float(size[0]), float(size[1]), float(size[2]), float(size[3]))
             self.pads[pad_name].Draw()
