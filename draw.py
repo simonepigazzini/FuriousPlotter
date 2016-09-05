@@ -38,8 +38,6 @@ class FPPlot:
         """
 
         self.basedir = ROOT.gDirectory.CurrentDirectory()
-        #---create line object for drawing custom lines
-        ROOT.gROOT.ProcessLine("TLine line;")
 
         #---if no pad is specified, only the default global canvas is created
         #   histos defined under plot scope are attached to it
@@ -65,13 +63,18 @@ class FPPlot:
                 self.histos[histo_key].Draw(draw_opt)
                 if not first_histo:
                     first_histo = histo_key
-                if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMaximum() > self.histos[first_histo].GetMaximum():
+                extra_min = cfg.GetOpt(float)(self.name+".extraSpaceBelow") if cfg.OptExist(self.name+".extraSpaceBelow") else 1.
+                extra_max = cfg.GetOpt(float)(self.name+".extraSpaceAbove") if cfg.OptExist(self.name+".extraSpaceAbove") else 1.
+                if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMaximum() >= self.histos[first_histo].GetMaximum():
                     self.histos[first_histo].SetAxisRange(self.histos[first_histo].GetMinimum(),
-                                                          self.histos[histo_key].GetMaximum()*1.1, "Y")
-                if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMinimum() < self.histos[first_histo].GetMinimum():
-                    self.histos[first_histo].SetAxisRange(self.histos[histo_key].GetMinimum()*1.1,
+                                                          self.histos[histo_key].GetMaximum()*1.1*extra_max, "Y")
+                if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMinimum() <= self.histos[first_histo].GetMinimum():
+                    self.histos[first_histo].SetAxisRange(self.histos[histo_key].GetMinimum()*1.1*extra_min,
                                                           self.histos[first_histo].GetMaximum(), "Y")
             #---apply style to pad
+            lg = self.buildLegend()
+            lg.Draw("same")
+            ROOT.gPad.Update()
             self.setStyle(pad_key, pad)
                 
         ###---if option 'saveAs' is specified override global option
@@ -79,7 +82,7 @@ class FPPlot:
         ###---save canvas if not disabled
         if "goff" not in save_opt:
             self.savePlotAs(save_opt)
-            
+
     ###---create pad------------------------------------------------------
     def createPad(self, pad_name):
         """Create pad and histos"""
@@ -92,7 +95,7 @@ class FPPlot:
             if len(size) == 0:                        
                 self.pads[pad_name] = ROOT.TCanvas(pad_name.replace(".", "_"))
             elif len(size) == 2:
-                self.pads[pad_name] = ROOT.TCanvas(pad_name.replace(".", "_"), "", float(size[0]), float(size[1]))
+                self.pads[pad_name] = ROOT.TCanvas(pad_name.replace(".", "_"), "", int(size[0]), int(size[1]))
             else:
                 printMessage("Global canvas creation: option <size> must contain 0 or 2 values", -1)
             ROOT.gDirectory.Append(self.pads[self.name])
@@ -102,6 +105,29 @@ class FPPlot:
         else:
             printMessage("TPad size parameters not specified: "+pad_name, -1)
             exit(0)
+
+    ###---legend----------------------------------------------------------
+    def buildLegend(self):
+        "Build legend for current plot. Entry order is fixed by cfg file"
+
+        if cfg.OptExist(self.name+".legendXY"):
+            pos = cfg.GetOpt(vstring)(self.name+".legendXY")
+        else:
+            pos = [0.6, 0.6, 0.9, 0.9]
+
+        head = cfg.GetOpt(self.name+".legendHeader") if cfg.OptExist(self.name+".legendHeader") else ""
+        lg = ROOT.TLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]), head)
+        lg.SetFillStyle(0)
+
+        entries = cfg.GetOpt(vstring)(self.name+".legendEntries") if cfg.OptExist(self.name+".legendEntries") else cfg.GetOpt(vstring)(self.name+".histos")
+        for entry in entries:
+            histo_key = self.name+"."+entry
+            if cfg.OptExist(histo_key+".legendEntry", 0):
+                label = cfg.GetOpt(std.string)(histo_key+".legendEntry", 0)
+                opt = cfg.GetOpt(std.string)(histo_key+".legendEntry", 1) if cfg.OptExist(histo_key+".legendEntry", 1) else "lpf"
+                lg.AddEntry(self.histos[histo_key].GetName(), label, opt)
+                        
+        return lg
 
     ###---Print canvas----------------------------------------------------
     def savePlotAs(self, exts):
@@ -232,7 +258,7 @@ class FPPlot:
         elif len(bins) == 8:
             tmp_histo = ROOT.TProfile2D("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                         int(bins[3]), float(bins[4]), float(bins[5]),
-                                        float(bins[6]), float(bins[7]))
+                                        float(bins[6]), float(bins[7]), "S")
             
         # draw histo
         var = cfg.GetOpt(std.string)(histo_key+".var")+">>"+tmp_histo.GetName()
@@ -264,7 +290,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser (description = 'Draw plots from ROOT files')
     parser.add_argument('-m', '--mod', type=str, default='', help='config file modifiers')
     parser.add_argument('-c', '--cfg', default='', help='cfg file')
-    parser.add_argument('--debug', type=bool, default=False, help='print debug information')
+    parser.add_argument('--debug', action='store_true', help='print debug information')
     
     cmd_opts = parser.parse_args()
 
@@ -280,6 +306,7 @@ if __name__ == "__main__":
         cfg.Print()    
         
     #---Load py/C++ plugins(for preproc, style and postproc)
+    sys.path.insert(1, os.getcwd())
     plugin_funcs = {}
     plugins = {"py" : ['operations'], "C" : [], "so" : [], "line" : []}    
     if cfg.OptExist("draw.plugins"):        
@@ -303,7 +330,16 @@ if __name__ == "__main__":
     processLines(plugins["line"])
     
     #---Make plots with FPPlots
+    #---create line object for drawing custom lines
+    ROOT.gROOT.ProcessLine("TLine line;")
+    ROOT.gROOT.ProcessLine("TLatex latex;")
     for plot_name in cfg.GetOpt(vstring)("draw.plots"):
         printMessage("Drawing <"+colors.CYAN+plot_name+colors.DEFAULT+">", 1)        
         plot = FPPlot(plot_name, cfg, plugin_funcs)
         plot.processPads()
+
+    #---Post-proc
+    if cfg.OptExist("draw.postProcCommands"):
+        for command in cfg.GetOpt(vstring)("draw.postProcCommands"):
+            os.system(command)
+            

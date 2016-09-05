@@ -158,7 +158,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser (description = 'Draw plots from ROOT files')
     parser.add_argument('-m', '--mod', type=str, default='', help='config file modifiers')
     parser.add_argument('-c', '--cfg', default='', help='cfg file')
-    parser.add_argument('--debug', type=bool, default=False, help='print debug information')
+    parser.add_argument('--debug', action='store_true', help='print debug information')
     
     cmd_opts = parser.parse_args()
 
