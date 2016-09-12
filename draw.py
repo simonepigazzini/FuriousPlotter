@@ -251,7 +251,7 @@ class FPPlot:
             tmp_histo = ROOT.TH1F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
         elif len(bins) == 5:
             tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                      float(bins[3]), float(bins[4]))
+                                      float(bins[3]), float(bins[4]), "S")
         elif len(bins) == 6:
             tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                   int(bins[3]), float(bins[4]), float(bins[5]))

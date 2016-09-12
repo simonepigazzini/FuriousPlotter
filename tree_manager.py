@@ -39,7 +39,7 @@ class FPTreeCreator:
         data_table = '#define DATA_TABLE '
         data_vect_table = '#define DATA_VECT_TABLE '
         data_class_table = '#define DATA_CLASS_TABLE '
-        for line in cfg.GetOpt(vstring)(self.key+".variables"):
+        for line in cfg.GetOpt(vstring)(self.key+".variables") if cfg.OptExist(self.key+".variables") else []:
             v_name = self.readVariable(line)
             v_type = self.variables[v_name]['type']
             v_len = self.variables[v_name]['size']
@@ -79,6 +79,7 @@ class FPTreeCreator:
         value = declaration[1].strip() if len(declaration) > 1 else '0'
         if vname[-1:] == ']':
             vsize = vname[vname.find('[')+1:-1]
+            vname = vname[:vname.find('[')]
         else:
             vsize = 1
 
