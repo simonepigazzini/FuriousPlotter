@@ -56,13 +56,13 @@ class FPPlot:
                 if histo_key not in self.histos.keys():
                     self.processHistogram(histo_key)
                 self.setStyle(histo_key, self.histos[histo_key])
-                draw_opt += cfg.GetOpt(std.string)(histo_key+".drawOptions") if cfg.OptExist(histo_key+".drawOptions") else ""
+                draw_opt += self.cfg.GetOpt(std.string)(histo_key+".drawOptions") if self.cfg.OptExist(histo_key+".drawOptions") else ""
                 pad.cd()                
                 self.histos[histo_key].Draw(draw_opt)
                 if not first_histo:
                     first_histo = histo_key
-                extra_min = cfg.GetOpt(float)(self.name+".extraSpaceBelow") if cfg.OptExist(self.name+".extraSpaceBelow") else 1.
-                extra_max = cfg.GetOpt(float)(self.name+".extraSpaceAbove") if cfg.OptExist(self.name+".extraSpaceAbove") else 1.
+                extra_min = self.cfg.GetOpt(float)(self.name+".extraSpaceBelow") if self.cfg.OptExist(self.name+".extraSpaceBelow") else 1.
+                extra_max = self.cfg.GetOpt(float)(self.name+".extraSpaceAbove") if self.cfg.OptExist(self.name+".extraSpaceAbove") else 1.
                 if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMaximum() >= self.histos[first_histo].GetMaximum():
                     self.histos[first_histo].SetAxisRange(self.histos[first_histo].GetMinimum(),
                                                           self.histos[histo_key].GetMaximum()*1.1*extra_max, "Y")
@@ -79,8 +79,8 @@ class FPPlot:
         save_opt = self.cfg.GetOpt(vstring)(self.name+".saveAs") if self.cfg.OptExist(self.name+".saveAs") else self.cfg.GetOpt(vstring)("draw.saveAs")
         ###---save canvas if not disabled
         if "goff" not in save_opt:
-            self.savePlotAs(save_opt)
-
+            self.savePlotAs(save_opt)        
+            
     ###---create pad------------------------------------------------------
     def createPad(self, pad_name):
         """Create pad and histos"""
@@ -108,21 +108,21 @@ class FPPlot:
     def buildLegend(self):
         "Build legend for current plot. Entry order is fixed by cfg file"
 
-        if cfg.OptExist(self.name+".legendXY"):
-            pos = cfg.GetOpt(vstring)(self.name+".legendXY")
+        if self.cfg.OptExist(self.name+".legendXY"):
+            pos = self.cfg.GetOpt(vstring)(self.name+".legendXY")
         else:
             pos = [0.6, 0.6, 0.9, 0.9]
 
-        head = cfg.GetOpt(self.name+".legendHeader") if cfg.OptExist(self.name+".legendHeader") else ""
+        head = self.cfg.GetOpt(self.name+".legendHeader") if self.cfg.OptExist(self.name+".legendHeader") else ""
         lg = ROOT.TLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]), head)
         lg.SetFillStyle(0)
 
-        entries = cfg.GetOpt(vstring)(self.name+".legendEntries") if cfg.OptExist(self.name+".legendEntries") else cfg.GetOpt(vstring)(self.name+".histos")
+        entries = self.cfg.GetOpt(vstring)(self.name+".legendEntries") if self.cfg.OptExist(self.name+".legendEntries") else self.cfg.GetOpt(vstring)(self.name+".histos")
         for entry in entries:
             histo_key = self.name+"."+entry
-            if cfg.OptExist(histo_key+".legendEntry", 0):
-                label = cfg.GetOpt(std.string)(histo_key+".legendEntry", 0)
-                opt = cfg.GetOpt(std.string)(histo_key+".legendEntry", 1) if cfg.OptExist(histo_key+".legendEntry", 1) else "lpf"
+            if self.cfg.OptExist(histo_key+".legendEntry", 0):
+                label = self.cfg.GetOpt(std.string)(histo_key+".legendEntry", 0)
+                opt = self.cfg.GetOpt(std.string)(histo_key+".legendEntry", 1) if self.cfg.OptExist(histo_key+".legendEntry", 1) else "lpf"
                 lg.AddEntry(self.histos[histo_key].GetName(), label, opt)
                         
         return lg
@@ -213,9 +213,9 @@ class FPPlot:
                 elif "/" in src_vect[0] and src_vect[0][0] != "/":
                     abs_path = os.path.abspath(src_vect[0])
             if os.path.isfile(abs_path):
-                if histo_key not in self.files.keys():
-                    self.files[histo_key] = ROOT.TFile.Open(src_vect[0])
-                histo_file = self.files[histo_key]                
+                if abs_path not in self.files.keys():
+                    self.files[abs_path] = ROOT.TFile.Open(src_vect[0])
+                histo_file = self.files[abs_path]                
             # not a file: try to get it from current open file
             elif histo_file and histo_file.Get(src_vect[0]):
                 srcs[alias] = histo_file.Get(src_vect[0])
@@ -240,7 +240,7 @@ class FPPlot:
     def makeHistogramFromTTree(self, histo_obj, histo_key):
         "Draw histograms from TTree, histogram type is guessed from specified binning"
 
-        bins = cfg.GetOpt(vstring)(histo_key+".bins")
+        bins = self.cfg.GetOpt(vstring)(histo_key+".bins")
         if len(bins) == 1 and self.cfg.OptExist(bins[0]):
             vbins = self.cfg.GetOpt(std.vector(float))(bins[0])
             nbins = vbins.size()-1
@@ -259,8 +259,8 @@ class FPPlot:
                                         float(bins[6]), float(bins[7]), "S")
             
         # draw histo
-        var = cfg.GetOpt(std.string)(histo_key+".var")+">>"+tmp_histo.GetName()
-        cut = cfg.GetOpt(std.string)(histo_key+".cut") if cfg.OptExist(histo_key+".cut") else ""
+        var = self.cfg.GetOpt(std.string)(histo_key+".var")+">>"+tmp_histo.GetName()
+        cut = self.cfg.GetOpt(std.string)(histo_key+".cut") if self.cfg.OptExist(histo_key+".cut") else ""
         histo_obj.Draw(var, cut, "goff")
 
         return tmp_histo

@@ -69,16 +69,17 @@ if __name__ == "__main__":
     #---Create trees with FPTreeCreator
     if cmd_opts.make_trees and cfg.OptExist("draw.trees"):
         for tree_name in cfg.GetOpt(vstring)("draw.trees"):
-            printMessage("Creating <"+colors.CYAN+tree_name+colors.DEFAULT+" TTree>", 1)        
+            printMessage("Creating <"+colors.CYAN+tree_name+colors.DEFAULT+"> TTree", 1)        
             FPTreeCreator(cfg, tree_name, plugin_funcs)
 
     #---Make plots with FPPlots
     #---create line object for drawing custom lines
     ROOT.gROOT.ProcessLine("TLine line;")
     ROOT.gROOT.ProcessLine("TLatex latex;")
-    for plot_name in cfg.GetOpt(vstring)("draw.plots"):
-        printMessage("Drawing <"+colors.CYAN+plot_name+colors.DEFAULT+">", 1)        
-        plot = FPPlot(plot_name, cfg, plugin_funcs)
+    if cfg.OptExist("draw.plots"):
+        for plot_name in cfg.GetOpt(vstring)("draw.plots"):
+            printMessage("Drawing <"+colors.CYAN+plot_name+colors.DEFAULT+">", 1)        
+            plot = FPPlot(plot_name, cfg, plugin_funcs)
         
     #---Post-proc
     if cfg.OptExist("draw.postProcCommands"):

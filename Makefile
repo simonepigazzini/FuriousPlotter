@@ -10,7 +10,6 @@ install:
 	cp fp_utils.py $(rootsys)/lib/root
 	cp operations.py $(rootsys)/lib/root
 	chmod +x $(rootsys)/bin/draw.py
-	chmod +x $(rootsys)/bin/tree_manager.py
 
 uninstall:
 	rm -r $(rootsys)/etc/root/plugins/FuriousPlotter/
