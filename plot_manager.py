@@ -58,7 +58,6 @@ class FPPlot:
                 self.setStyle(histo_key, self.histos[histo_key])
                 draw_opt += self.cfg.GetOpt(std.string)(histo_key+".drawOptions") if self.cfg.OptExist(histo_key+".drawOptions") else ""
                 pad.cd()
-                print(histo_key, draw_opt)
                 self.histos[histo_key].Draw(draw_opt)
                 if not first_histo:
                     first_histo = histo_key
