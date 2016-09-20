@@ -49,15 +49,16 @@ class FPPlot:
             if not pad:
                 self.createPad(pad_key)
                 pad = self.pads[pad_key]
-            draw_opt = "same"
             first_histo = 0
             for histo in self.cfg.GetOpt(vstring)(pad_key+".histos") if self.cfg.OptExist(pad_key+".histos") else []:
+                draw_opt = "same"
                 histo_key = pad_key+"."+histo
                 if histo_key not in self.histos.keys():
                     self.processHistogram(histo_key)
                 self.setStyle(histo_key, self.histos[histo_key])
                 draw_opt += self.cfg.GetOpt(std.string)(histo_key+".drawOptions") if self.cfg.OptExist(histo_key+".drawOptions") else ""
-                pad.cd()                
+                pad.cd()
+                print(histo_key, draw_opt)
                 self.histos[histo_key].Draw(draw_opt)
                 if not first_histo:
                     first_histo = histo_key
@@ -213,9 +214,9 @@ class FPPlot:
                 elif "/" in src_vect[0] and src_vect[0][0] != "/":
                     abs_path = os.path.abspath(src_vect[0])
             if os.path.isfile(abs_path):
-                if abs_path not in self.files.keys():
-                    self.files[abs_path] = ROOT.TFile.Open(src_vect[0])
-                histo_file = self.files[abs_path]                
+                if histo_key not in self.files.keys():
+                    self.files[histo_key] = ROOT.TFile.Open(src_vect[0])
+                histo_file = self.files[histo_key]                
             # not a file: try to get it from current open file
             elif histo_file and histo_file.Get(src_vect[0]):
                 srcs[alias] = histo_file.Get(src_vect[0])
