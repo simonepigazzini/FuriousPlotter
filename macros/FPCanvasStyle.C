@@ -5,24 +5,24 @@
 #include "TASImage.h"
 #include <iostream>
 
-void CMS_lumi(TPad* pad, std::string period, int iPosX, TString extraText="",
-              bool outOfFrame=false, bool is2DCOLZ=false)
+void FPCanvasStyle(TPad* pad, std::string left_text="", std::string right_text="", int iPosX=0, TString extraText="",
+                   bool outOfFrame=false, bool is2DCOLZ=false)
 {
     //
     // Global variables
     //
 
-    TString cmsText     = "CMS";
-    float cmsTextFont   = 62;  // default is helvetic-bold
+    TString leftText     = left_text;
+    float leftTextFont   = 62;  // default is helvetic-bold
 
     float extraTextFont = 52;  // default is helvetica-italics
 
     // text sizes and text offsets with respect to the top frame
     // in unit of the top margin size
-    float lumiTextSize     = 0.6;
-    float lumiTextOffset   = 0.2;
-    float cmsTextSize      = 0.75;
-    float cmsTextOffset    = 0.1;  // only used in outOfFrame version
+    float rightTextSize     = 0.6;
+    float rightTextOffset   = 0.2;
+    float leftTextSize      = 0.75;
+    float leftTextOffset    = 0.1;  // only used in outOfFrame version
 
     float relPosX    = 0.045;
     float relPosY    = 0.035;
@@ -32,30 +32,33 @@ void CMS_lumi(TPad* pad, std::string period, int iPosX, TString extraText="",
     // ratio of "CMS" and extra text size
     float extraOverCmsTextSize  = 0.76;
 
-    std::map<std::string, TString> lumi_map;
-
     bool drawLogo      = false;
-
-    lumi_map["13TeV"] = "3.3 fb^{-1} (13 TeV)";
-    lumi_map["13TeV_4T"] = "2.7 fb^{-1} (13 TeV)";
-    lumi_map["13TeV_0T"] = "0.6 fb^{-1} (13 TeV, 0T)";
-    lumi_map["8TeV"] = "19.7 fb^{-1} (8 TeV)" ;
-    lumi_map["7TeV"] = "5.1 fb^{-1} (7 TeV)";
-    lumi_map["Comb_7_8"] = lumi_map["7TeV"]+" + "+lumi_map["8TeV"];
-    lumi_map["Comb_7_8_13"] = "#scale[0.85]{"+lumi_map["7TeV"]+" + "+lumi_map["8TeV"]+" + "+lumi_map["13TeV"]+"}";
 
     pad->SetBottomMargin(0.13);
     pad->SetLeftMargin(0.18);
+    pad->SetTopMargin(0.08);
+    pad->SetRightMargin(0.05);
     if(is2DCOLZ)
     {
         TGaxis::SetMaxDigits(4);
         pad->SetTopMargin(0.07);
-        pad->SetRightMargin(0.15);
-    }
-    else
-    {
-        pad->SetTopMargin(0.08);
-        pad->SetRightMargin(0.05);
+        pad->SetRightMargin(0.17);
+        pad->SetLeftMargin(0.15);
+        for(auto obj : *pad->GetListOfPrimitives())
+        {
+            auto obj_name = TString(obj->ClassName());
+            if(obj_name.Contains("2"))
+            {
+                TPaletteAxis* palette =
+                    (TPaletteAxis*)((TH2*)gDirectory->Get(obj->GetName()))->GetListOfFunctions()->FindObject("palette");
+                palette->SetX1NDC(0.835);
+                palette->SetX2NDC(0.875);
+                palette->SetY1NDC(0.13);
+                palette->SetY2NDC(0.93);
+                gPad->Modified();
+                gPad->Update();
+            }
+        }
     }
     
     int alignY_=3;
@@ -79,32 +82,28 @@ void CMS_lumi(TPad* pad, std::string period, int iPosX, TString extraText="",
 
     pad->cd();
  
-    TString lumiText = "";
-    if(lumi_map.find(period) != lumi_map.end())
-        lumiText = lumi_map[period];
-    else
-        lumiText = period;
+    TString rightText = right_text;
    
     TLatex latex;
     latex.SetNDC();
     latex.SetTextAngle(0);
     latex.SetTextColor(kBlack);    
 
-    float extraTextSize = extraOverCmsTextSize*cmsTextSize;
+    float extraTextSize = extraOverCmsTextSize*leftTextSize;
 
     latex.SetTextFont(42);
     latex.SetTextAlign(31); 
-    latex.SetTextSize(lumiTextSize*t);    
-    latex.DrawLatex(1-r,1-t+lumiTextOffset*t,lumiText);
+    latex.SetTextSize(rightTextSize*t);    
+    latex.DrawLatex(1-r,1-t+rightTextOffset*t,rightText);
 
     if(iPosX==0)
-        cmsText += "#scale[0.76]{#bf{#it{ "+extraText+"}}}";
+        leftText += "#scale[0.76]{#bf{#it{ "+extraText+"}}}";
     if( outOfFrame )
     {
-        latex.SetTextFont(cmsTextFont);
+        latex.SetTextFont(leftTextFont);
         latex.SetTextAlign(11); 
-        latex.SetTextSize(cmsTextSize*t);    
-        latex.DrawLatex(l,1-t+lumiTextOffset*t,cmsText);
+        latex.SetTextSize(leftTextSize*t);    
+        latex.DrawLatex(l,1-t+rightTextOffset*t,leftText);
     }
   
     pad->cd();
@@ -143,16 +142,16 @@ void CMS_lumi(TPad* pad, std::string period, int iPosX, TString extraText="",
 	}
         else
 	{
-            latex.SetTextFont(cmsTextFont);
-            latex.SetTextSize(cmsTextSize*t);
+            latex.SetTextFont(leftTextFont);
+            latex.SetTextSize(leftTextSize*t);
             latex.SetTextAlign(align_);
-            latex.DrawLatex(posX_, posY_, cmsText);
+            latex.DrawLatex(posX_, posY_, leftText);
             if( extraText != "" ) 
 	    {
                 latex.SetTextFont(extraTextFont);
                 latex.SetTextAlign(align_);
                 latex.SetTextSize(extraTextSize*t);
-                latex.DrawLatex(posX_, posY_- relExtraDY*cmsTextSize*t, extraText);
+                latex.DrawLatex(posX_, posY_- relExtraDY*leftTextSize*t, extraText);
 	    }
 	}
     }
