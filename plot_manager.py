@@ -9,6 +9,7 @@ import subprocess
 import ROOT
 
 from fp_utils import *
+from array import array
 from collections import OrderedDict as odict
 from ROOT import TH1F
 
@@ -219,7 +220,8 @@ class FPPlot:
             # not a file: try to get it from current open file
             elif histo_file and histo_file.Get(src_vect[0]):
                 srcs[alias] = histo_file.Get(src_vect[0])
-                srcs[alias].SetDirectory(self.basedir)
+                if "TTree" not in srcs[alias].ClassName():
+                    srcs[alias].SetDirectory(self.basedir)
             # try to get object from session workspace
             elif self.basedir.Get(src_vect[0]):
                 srcs[alias] = self.basedir.Get(src_vect[0])
@@ -240,29 +242,62 @@ class FPPlot:
     def makeHistogramFromTTree(self, histo_obj, histo_key):
         "Draw histograms from TTree, histogram type is guessed from specified binning"
 
-        bins = self.cfg.GetOpt(vstring)(histo_key+".bins")
-        if len(bins) == 1 and self.cfg.OptExist(bins[0]):
-            vbins = self.cfg.GetOpt(std.vector(float))(bins[0])
-            nbins = vbins.size()-1
-            tmp_histo = ROOT.TH1F("h_"+histo_obj.GetName(), histo_key, nbins, vbins.data())
-        if len(bins) == 3:
-            tmp_histo = ROOT.TH1F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
-        elif len(bins) == 5:
-            tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                      float(bins[3]), float(bins[4]), "S")
-        elif len(bins) == 6:
-            tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                  int(bins[3]), float(bins[4]), float(bins[5]))
-        elif len(bins) == 8:
-            tmp_histo = ROOT.TProfile2D("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                        int(bins[3]), float(bins[4]), float(bins[5]),
-                                        float(bins[6]), float(bins[7]), "S")
-            
+        ###---build histograms with fixed size bins 
+        if self.cfg.OptExist(histo_key+".bins"):
+            bins = self.cfg.GetOpt(vstring)(histo_key+".bins")
+            if len(bins) == 3:
+                tmp_histo = ROOT.TH1F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
+            elif len(bins) == 5:
+                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                              float(bins[3]), float(bins[4]), "S")
+            elif len(bins) == 6:
+                tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                          int(bins[3]), float(bins[4]), float(bins[5]))
+            elif len(bins) == 8:
+                tmp_histo = ROOT.TProfile2D("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                            int(bins[3]), float(bins[4]), float(bins[5]),
+                                            float(bins[6]), float(bins[7]), "S")
+                
+        ###---build histograms with variable size bins
+        elif self.cfg.OptExist(histo_key+".dbins"):
+            dbins = self.cfg.GetOpt(vstring)(histo_key+".dbins")
+            if len(dbins) == 1 and self.cfg.OptExist(dbins[0]):
+                vbins = self.cfg.GetOpt(std.vector(float))(dbins[0])
+                nbins = vbins.size()-1
+                tmp_histo = ROOT.TH1F("h_"+histo_obj.GetName(), histo_key, nbins, vbins.data())
+            elif len(dbins) == 2 and self.cfg.OptExist(dbins[0]) and self.cfg.OptExist(dbins[1]):
+                vxbins = self.cfg.GetOpt(std.vector(float))(dbins[0])
+                nxbins = vxbins.size()-1
+                vybins = self.cfg.GetOpt(std.vector(float))(dbins[1])
+                nybins = vybins.size()-1
+                tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, nxbins, vxbins.data(), nybins, vybins.data())
+            elif len(dbins) == 3 and self.cfg.OptExist(dbins[0]):
+                vbins = self.cfg.GetOpt(std.vector(float))(dbins[0])
+                nbins = vbins.size()-1
+                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, nbins, vbins.data(), float(dbins[1]), float(dbins[2]))
+            elif len(dbins) == 4:
+                if self.cfg.OptExist(dbins[0]):
+                    values = self.cfg.GetOpt(std.vector(float))(dbins[0])
+                    vxbins = array('d')
+                    for value in values: 
+                        vxbins.append(value)
+                    nxbins = values.size()-1
+                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(nxbins), vxbins,
+                                          int(dbins[1]), float(dbins[2]), float(dbins[3]))
+                elif self.cfg.OptExist(dbins[3]):
+                    values = self.cfg.GetOpt(std.vector(float))(dbins[0])
+                    vybins = array('d')
+                    for value in values: 
+                        vybins.append(value)
+                    nybins = values.size()-1
+                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(dbins[0]), float(dbins[1]), float(dbins[2]),
+                                          nybins, vybins)
+                    
         # draw histo
         var = self.cfg.GetOpt(std.string)(histo_key+".var")+">>"+tmp_histo.GetName()
         cut = self.cfg.GetOpt(std.string)(histo_key+".cut") if self.cfg.OptExist(histo_key+".cut") else ""
         histo_obj.Draw(var, cut, "goff")
-
+              
         return tmp_histo
 
     ###---set histogram style---------------------------------------------
