@@ -3,7 +3,7 @@
 import sys
 import re
 import time
-import argparse
+import random
 import os
 import subprocess
 import ROOT
@@ -56,7 +56,7 @@ class FPPlot:
                 histo_key = pad_key+"."+histo
                 if histo_key not in self.histos.keys():
                     self.processHistogram(histo_key)
-                self.setStyle(histo_key, self.histos[histo_key])
+                self.custumize(histo_key, self.histos[histo_key])
                 draw_opt += self.cfg.GetOpt(std.string)(histo_key+".drawOptions") if self.cfg.OptExist(histo_key+".drawOptions") else ""
                 pad.cd()
                 self.histos[histo_key].Draw(draw_opt)
@@ -74,7 +74,7 @@ class FPPlot:
             lg = self.buildLegend()
             lg.Draw("same")
             ROOT.gPad.Update()
-            self.setStyle(pad_key, pad)
+            self.custumize(pad_key, pad)
                 
         ###---if option 'saveAs' is specified override global option
         save_opt = self.cfg.GetOpt(vstring)(self.name+".saveAs") if self.cfg.OptExist(self.name+".saveAs") else self.cfg.GetOpt(vstring)("draw.saveAs")
@@ -118,13 +118,41 @@ class FPPlot:
         lg = ROOT.TLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]), head)
         lg.SetFillStyle(0)
 
-        entries = self.cfg.GetOpt(vstring)(self.name+".legendEntries") if self.cfg.OptExist(self.name+".legendEntries") else self.cfg.GetOpt(vstring)(self.name+".histos")
+        entries = self.cfg.GetOpt(vstring)(self.name+".legendEntries") if self.cfg.OptExist(self.name+".legendEntries") else []
+        for histo in self.cfg.GetOpt(vstring)(self.name+".histos"):
+            entries.push_back(self.name+"."+histo)
+        ###---loop over entries and create an entry in the TLegend object
         for entry in entries:
-            histo_key = self.name+"."+entry
-            if self.cfg.OptExist(histo_key+".legendEntry", 0):
-                label = self.cfg.GetOpt(std.string)(histo_key+".legendEntry", 0)
-                opt = self.cfg.GetOpt(std.string)(histo_key+".legendEntry", 1) if self.cfg.OptExist(histo_key+".legendEntry", 1) else "lpf"
-                lg.AddEntry(self.histos[histo_key].GetName(), label, opt)
+            if self.cfg.OptExist(entry+".legendEntry"):
+                ###---get label from cfg then parse it and process c++ calls:
+                ###   - create a new namespace
+                ###   - convert result of c++ call to string
+                ###   - replace call with result in label
+                label = self.cfg.GetOpt(std.string)(entry+".legendEntry", 0)
+                for key, histo in self.histos.items():
+                    for call in re.findall(r'[\%|\s+]'+key+'->\w+\([\w|\"|\,|\-|\_]+\)', label):
+                        call = call.replace('%', '')
+                        call.strip()
+                        nspc = 'n'+''.join(random.choice('abcdefghjkilmnopqrstuvwyz0123456789') for i in range(5))
+                        ROOT.gROOT.ProcessLine("namespace "+nspc+"{::TString str_value;}")
+                        ROOT.gROOT.ProcessLine("namespace "+nspc+"{auto value = ::"+call+";}")
+                        ROOT.gROOT.ProcessLine(nspc+"::str_value += "+nspc+"::value;")
+                        ROOT.gROOT.ProcessLine("namespace "+nspc+"{struct get_value{::TString value = str_value;};}")
+                        value = getattr(ROOT, nspc).get_value().value
+                        match = re.search("\%\.[0-9]+[Ef]\%$", label[:label.find(call)])
+                        if match != None:
+                            # if '.' in value:
+                            #     value = value[:value.find('.')+int(match.group(0)[2:])+1]
+                            value = (match.group(0)[:-1] % float(value))
+                            value = re.sub('E(.*)', r'#scale[0.75]{#times}10^{\1}', value).replace('+','')
+                            value = re.sub('{0+(.*)}', r'{\1}', value)
+                            label = re.sub("\%\.[0-9]+[Ef]\%"+key+"->\w+\([\w|\"|\,|\-|\_]+\)", value, label, 1)
+                        else:
+                            label = re.sub(key+"->\w+\([\w|\"|\,|\-|\_]+\)", value, label, 1)
+                                                
+                opt = self.cfg.GetOpt(std.string)(entry+".legendEntry", 1) if self.cfg.OptExist(entry+".legendEntry", 1) else "lpf"
+                entry = self.cfg.GetOpt(std.string)(entry+".objName") if self.cfg.OptExist(entry+".objName") else entry
+                lg.AddEntry(self.histos[entry], label, opt)
                         
         return lg
 
@@ -167,14 +195,13 @@ class FPPlot:
     def parseOperation(self, operation, srcs):
         """
         Read operation string recursively:
-        + process basic operation +-/*
-        + call function for custom operations (efficiency, fit slices, ...)
+        + call function for builtin/custom operations (efficiency, fit slices, ...)
         """        
                 
         #---recursive
         func = operation[:operation.index("(")]
         if func in self.functions:            
-            tokens = re.split("(.*),(.*)", operation[operation.index("(")+1:operation.rfind(")")])
+            tokens = re.findall(".*\(.*\)|\w+", operation[operation.index("(")+1:operation.rfind(")")])
             args = []
             for token in tokens:
                 if "(" in token:
@@ -301,15 +328,51 @@ class FPPlot:
         return tmp_histo
 
     ###---set histogram style---------------------------------------------
-    def setStyle(self, key, obj):
-        "Set style attribute of histograms"
-    
-        if self.cfg.OptExist(key+".graphicalOptions"):
-            for gopt in self.cfg.GetOpt(vstring)(key+".graphicalOptions"):
-                if gopt[:6] != "macro:":
-                    gopt = "this->"+gopt if gopt[:4] != "this" else gopt
+    def custumize(self, key, obj):
+        """
+        Set style attribute of histograms
+        """
+
+        obj_definition_lines = []
+        if self.cfg.OptExist(key+".custumize"):
+            for line in self.cfg.GetOpt(vstring)(key+".custumize"):
+                if line[:6] != "macro:":
+                    line = "this->"+line if line[:4] != "this" else line
                 else:
-                    gopt = gopt[6:]
-                gopt = gopt.replace("this", obj.GetName())
-                ROOT.gROOT.ProcessLine(gopt)
-    
+                    line = line[6:]                    
+                for key, histo in self.histos.items():
+                    if '=' in line:
+                        line = line[:line.find('=')]+line[line.find('='):].replace(key, histo.GetName())
+                    else:
+                        line = line.replace(key, histo.GetName())
+                line = line.replace("this", obj.GetName())
+                line += ';'
+                if '=' in line:
+                    obj_definition_lines.append(line)
+
+                ROOT.gROOT.ProcessLine(line)
+
+        for line in obj_definition_lines:
+            self.getNewObject(line)
+                    
+    ###---capture object defined in line passed as argument
+    def getNewObject(self, line):
+        """
+        Parse line and retrive new objects appending them to:
+        - current directory
+        - self.histos container
+        """
+        
+        obj_def = line[line.index("=")+1:line.rfind(")")] if ")" in line else ""
+        if obj_def != "":
+            var_name = line[:line.index("=")-1].split()[-1]
+            tokens = re.findall("\w+", obj_def)                    
+            if tokens[0] == "new":
+                ROOT.gROOT.ProcessLine("gDirectory->Append("+var_name+")")
+                obj_name = tokens[2]
+            else:
+                ROOT.gROOT.ProcessLine("gDirectory->Append(&"+var_name+")")
+                obj_name = tokens[1]
+            if ROOT.gDirectory.Get(obj_name):
+                self.histos[obj_name] = ROOT.gDirectory.Get(obj_name)
+                self.histos[var_name] = self.histos[obj_name]
