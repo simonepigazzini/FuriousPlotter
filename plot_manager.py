@@ -56,7 +56,7 @@ class FPPlot:
                 histo_key = pad_key+"."+histo
                 if histo_key not in self.histos.keys():
                     self.processHistogram(histo_key)
-                self.custumize(histo_key, self.histos[histo_key])
+                self.customize(histo_key, self.histos[histo_key])
                 draw_opt += self.cfg.GetOpt(std.string)(histo_key+".drawOptions") if self.cfg.OptExist(histo_key+".drawOptions") else ""
                 pad.cd()
                 self.histos[histo_key].Draw(draw_opt)
@@ -74,7 +74,7 @@ class FPPlot:
             lg = self.buildLegend()
             lg.Draw("same")
             ROOT.gPad.Update()
-            self.custumize(pad_key, pad)
+            self.customize(pad_key, pad)
                 
         ###---if option 'saveAs' is specified override global option
         save_opt = self.cfg.GetOpt(vstring)(self.name+".saveAs") if self.cfg.OptExist(self.name+".saveAs") else self.cfg.GetOpt(vstring)("draw.saveAs")
@@ -118,7 +118,7 @@ class FPPlot:
         lg = ROOT.TLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]), head)
         lg.SetFillStyle(0)
 
-        entries = self.cfg.GetOpt(vstring)(self.name+".legendEntries") if self.cfg.OptExist(self.name+".legendEntries") else []
+        entries = self.cfg.GetOpt(vstring)(self.name+".legendEntries") if self.cfg.OptExist(self.name+".legendEntries") else vstring()
         for histo in self.cfg.GetOpt(vstring)(self.name+".histos"):
             entries.push_back(self.name+"."+histo)
         ###---loop over entries and create an entry in the TLegend object
@@ -247,7 +247,7 @@ class FPPlot:
             # not a file: try to get it from current open file
             elif histo_file and histo_file.Get(src_vect[0]):
                 srcs[alias] = histo_file.Get(src_vect[0])
-                if "TTree" not in srcs[alias].ClassName():
+                if "TTree" and "TGraph" not in srcs[alias].ClassName():
                     srcs[alias].SetDirectory(self.basedir)
             # try to get object from session workspace
             elif self.basedir.Get(src_vect[0]):
@@ -328,14 +328,14 @@ class FPPlot:
         return tmp_histo
 
     ###---set histogram style---------------------------------------------
-    def custumize(self, key, obj):
+    def customize(self, key, obj):
         """
         Set style attribute of histograms
         """
 
         obj_definition_lines = []
-        if self.cfg.OptExist(key+".custumize"):
-            for line in self.cfg.GetOpt(vstring)(key+".custumize"):
+        if self.cfg.OptExist(key+".customize"):
+            for line in self.cfg.GetOpt(vstring)(key+".customize"):
                 if line[:6] != "macro:":
                     line = "this->"+line if line[:4] != "this" else line
                 else:
