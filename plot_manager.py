@@ -241,13 +241,13 @@ class FPPlot:
                 elif "/" in src_vect[0] and src_vect[0][0] != "/":
                     abs_path = os.path.abspath(src_vect[0])
             if os.path.isfile(abs_path):
-                if histo_key not in self.files.keys():
-                    self.files[histo_key] = ROOT.TFile.Open(src_vect[0])
-                histo_file = self.files[histo_key]                
+                if abs_path not in self.files.keys():
+                    self.files[abs_path] = ROOT.TFile.Open(src_vect[0])
+                histo_file = self.files[abs_path]
             # not a file: try to get it from current open file
             elif histo_file and histo_file.Get(src_vect[0]):
                 srcs[alias] = histo_file.Get(src_vect[0])
-                if "TTree" and "TGraph" not in srcs[alias].ClassName():
+                if "TTree" not in srcs[alias].ClassName() and "TGraph" not in srcs[alias].ClassName():
                     srcs[alias].SetDirectory(self.basedir)
             # try to get object from session workspace
             elif self.basedir.Get(src_vect[0]):
