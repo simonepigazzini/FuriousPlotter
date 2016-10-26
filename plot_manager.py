@@ -50,6 +50,11 @@ class FPPlot:
             if not pad:
                 self.createPad(pad_key)
                 pad = self.pads[pad_key]
+            ### cumpute pad rescaling if sub-frame
+            pad_size = self.cfg.GetOpt(vstring)(pad_key+".size") if self.cfg.OptExist(pad_key+".size") else []
+            if len(pad_size) == 4:
+                pad_x_scale = float(pad_size[2])-float(pad_size[0])
+                pad_y_scale = float(pad_size[3])-float(pad_size[1])
             first_histo = 0
             for histo in self.cfg.GetOpt(vstring)(pad_key+".histos") if self.cfg.OptExist(pad_key+".histos") else []:
                 draw_opt = "same"
@@ -58,8 +63,13 @@ class FPPlot:
                     self.processHistogram(histo_key)
                 self.customize(histo_key, self.histos[histo_key])
                 draw_opt += self.cfg.GetOpt(std.string)(histo_key+".drawOptions") if self.cfg.OptExist(histo_key+".drawOptions") else ""
+                ### rescale labels and titles if pad is a sub-frame
                 pad.cd()
+                if len(pad_size) == 4:
+                    self.autoRescale(self.histos[histo_key], x_scale=pad_x_scale, y_scale=pad_y_scale)
                 self.histos[histo_key].Draw(draw_opt)
+
+                ### adjust maximum and minimum
                 if not first_histo:
                     first_histo = histo_key
                 extra_min = self.cfg.GetOpt(float)(self.name+".extraSpaceBelow") if self.cfg.OptExist(self.name+".extraSpaceBelow") else 1.
@@ -75,6 +85,8 @@ class FPPlot:
             lg.Draw("same")
             ROOT.gPad.Update()
             self.customize(pad_key, pad)
+            if len(pad_size) == 4:
+                self.autoRescale(pad, x_scale=pad_x_scale, y_scale=pad_y_scale)
                 
         ###---if option 'saveAs' is specified override global option
         save_opt = self.cfg.GetOpt(vstring)(self.name+".saveAs") if self.cfg.OptExist(self.name+".saveAs") else self.cfg.GetOpt(vstring)("draw.saveAs")
@@ -339,7 +351,7 @@ class FPPlot:
                                             
         return tmp_histo
 
-    ###---set histogram style---------------------------------------------
+    ###---set object style---------------------------------------------
     def customize(self, key, obj):
         """
         Set style attribute of histograms
@@ -366,7 +378,25 @@ class FPPlot:
 
         for line in obj_definition_lines:
             self.getNewObject(line)
-                    
+
+    ###---rescale obj in sub-frame-----------------------------------
+    def autoRescale(self, obj, x_scale=1, y_scale=1):
+        """
+        Rescale object labels and titles if object is in sub-frame
+        """
+
+        if "TPad" not in obj.ClassName():
+            xaxis = obj.GetXaxis()
+            print(xaxis.GetTitleSize(), x_scale, y_scale)
+            xaxis.SetLabelSize(xaxis.GetLabelSize()/(x_scale*y_scale))
+            xaxis.SetTitleSize(xaxis.GetTitleSize()/(x_scale*y_scale))
+            yaxis = obj.GetYaxis()
+            yaxis.SetLabelSize(yaxis.GetLabelSize()/(x_scale*y_scale))
+            yaxis.SetTitleSize(yaxis.GetTitleSize()/(x_scale*y_scale))
+            zaxis = obj.GetZaxis()
+            zaxis.SetLabelSize(zaxis.GetLabelSize()/(x_scale*y_scale))
+            zaxis.SetTitleSize(zaxis.GetTitleSize()/(x_scale*y_scale))
+
     ###---capture object defined in line passed as argument
     def getNewObject(self, line):
         """

@@ -14,6 +14,7 @@ from array import array
 def add(args, srcs):
     name = "add_"+"_".join(args)
     tmp = srcs[args[0]].Clone(name)
+    tmp.UseCurrentStyle()
     args.pop(0)
     for arg in args:
         tmp.Add(srcs[arg])
@@ -22,6 +23,7 @@ def add(args, srcs):
 def sub(args, srcs):
     name = "sub_"+"_".join(args)
     tmp = srcs[args[0]].Clone(name)
+    tmp.UseCurrentStyle()
     args.pop(0)
     for arg in args:
         tmp.Add(srcs[arg], -1)
@@ -30,6 +32,7 @@ def sub(args, srcs):
 def mul(args, srcs):
     name = "mul_"+"_".join(args)
     tmp = srcs[args[0]].Clone(name)
+    tmp.UseCurrentStyle()
     args.pop(0)
     for arg in args:
         tmp.Multiply(srcs[arg])
@@ -38,6 +41,7 @@ def mul(args, srcs):
 def div(args, srcs):
     name = "div_"+"_".join(args)
     tmp = srcs[args[0]].Clone(name)
+    tmp.UseCurrentStyle()
     args.pop(0)
     for arg in args:
         tmp.Divide(srcs[arg])
