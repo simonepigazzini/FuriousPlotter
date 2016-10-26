@@ -387,7 +387,6 @@ class FPPlot:
 
         if "TPad" not in obj.ClassName():
             xaxis = obj.GetXaxis()
-            print(xaxis.GetTitleSize(), x_scale, y_scale)
             xaxis.SetLabelSize(xaxis.GetLabelSize()/(x_scale*y_scale))
             xaxis.SetTitleSize(xaxis.GetTitleSize()/(x_scale*y_scale))
             yaxis = obj.GetYaxis()
