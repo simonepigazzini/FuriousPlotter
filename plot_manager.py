@@ -281,9 +281,11 @@ class FPPlot:
                 tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                           int(bins[3]), float(bins[4]), float(bins[5]))
             elif len(bins) == 8:
-                tmp_histo = ROOT.TProfile2D("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                            int(bins[3]), float(bins[4]), float(bins[5]),
-                                            float(bins[6]), float(bins[7]), "S")
+                tmp = ROOT.TProfile2D("ht_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                      int(bins[3]), float(bins[4]), float(bins[5]),
+                                      float(bins[6]), float(bins[7]), "S")
+                tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                      int(bins[3]), float(bins[4]), float(bins[5]))
                 
         ###---build histograms with variable size bins
         elif self.cfg.OptExist(histo_key+".dbins"):
@@ -321,10 +323,19 @@ class FPPlot:
                                           nybins, vybins)
                     
         # draw histo
-        var = self.cfg.GetOpt(std.string)(histo_key+".var")+">>"+tmp_histo.GetName()
+        name = tmp.GetName() if 'tmp' in locals() else tmp_histo.GetName()
+        var = self.cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
         cut = self.cfg.GetOpt(std.string)(histo_key+".cut") if self.cfg.OptExist(histo_key+".cut") else ""
         histo_obj.Draw(var, cut, "goff")
-              
+
+        # convert TProfile2D in plain TH2F
+        if 'tmp' in locals():
+            for xbin in range(1, tmp.GetNbinsX()+1):                
+                for ybin in range(1, tmp.GetNbinsY()+1):
+                    tmp_histo.SetBinContent(xbin, ybin, tmp.GetBinContent(xbin, ybin))
+
+            tmp.Delete()
+                                            
         return tmp_histo
 
     ###---set histogram style---------------------------------------------
