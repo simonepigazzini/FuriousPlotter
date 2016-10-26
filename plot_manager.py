@@ -119,8 +119,9 @@ class FPPlot:
         lg.SetFillStyle(0)
 
         entries = self.cfg.GetOpt(vstring)(self.name+".legendEntries") if self.cfg.OptExist(self.name+".legendEntries") else vstring()
-        for histo in self.cfg.GetOpt(vstring)(self.name+".histos"):
-            entries.push_back(self.name+"."+histo)
+        for pad_key, pad in self.pads.items():
+            for histo in self.cfg.GetOpt(vstring)(pad_key+".histos") if self.cfg.OptExist(pad_key+".histos") else []:
+                entries.push_back(pad_key+"."+histo)
         ###---loop over entries and create an entry in the TLegend object
         for entry in entries:
             if self.cfg.OptExist(entry+".legendEntry"):
