@@ -81,12 +81,12 @@ class FPPlot:
                     self.histos[first_histo].SetAxisRange(self.histos[histo_key].GetMinimum()*1.1*extra_min,
                                                           self.histos[first_histo].GetMaximum(), "Y")
             #---apply style to pad
-            lg = self.buildLegend()
-            lg.Draw("same")
+            lg = self.buildLegend(pad_key)
+            lg.Draw()            
             ROOT.gPad.Update()
             self.customize(pad_key, pad)
             if len(pad_size) == 4:
-                self.autoRescale(pad, x_scale=pad_x_scale, y_scale=pad_y_scale)
+                self.autoRescale(pad, x_scale=pad_x_scale, y_scale=pad_y_scale)                
                 
         ###---if option 'saveAs' is specified override global option
         save_opt = self.cfg.GetOpt(vstring)(self.name+".saveAs") if self.cfg.OptExist(self.name+".saveAs") else self.cfg.GetOpt(vstring)("draw.saveAs")
@@ -118,22 +118,24 @@ class FPPlot:
             exit(0)
 
     ###---legend----------------------------------------------------------
-    def buildLegend(self):
+    def buildLegend(self, pad_key):
         "Build legend for current plot. Entry order is fixed by cfg file"
 
-        if self.cfg.OptExist(self.name+".legendXY"):
-            pos = self.cfg.GetOpt(vstring)(self.name+".legendXY")
+        if self.cfg.OptExist(pad_key+".legendXY"):
+            pos = self.cfg.GetOpt(vstring)(pad_key+".legendXY")
         else:
             pos = [0.6, 0.6, 0.9, 0.9]
+        header = self.cfg.GetOpt(pad_key+".legendHeader") if self.cfg.OptExist(pad_key+".legendHeader") else ""
 
-        head = self.cfg.GetOpt(self.name+".legendHeader") if self.cfg.OptExist(self.name+".legendHeader") else ""
-        lg = ROOT.TLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]), head)
+        ###---Create legend using the buildin BuildLegend TPad method:
+        ###   this is a workaround in order to be able to draw legends in different pads (probably a ROOT bug)
+        lg = self.pads[pad_key].BuildLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]), header)
+        lg.Clear()
         lg.SetFillStyle(0)
 
-        entries = self.cfg.GetOpt(vstring)(self.name+".legendEntries") if self.cfg.OptExist(self.name+".legendEntries") else vstring()
-        for pad_key, pad in self.pads.items():
-            for histo in self.cfg.GetOpt(vstring)(pad_key+".histos") if self.cfg.OptExist(pad_key+".histos") else []:
-                entries.push_back(pad_key+"."+histo)
+        entries = self.cfg.GetOpt(vstring)(pad_key+".legendEntries") if self.cfg.OptExist(pad_key+".legendEntries") else vstring()
+        for histo in self.cfg.GetOpt(vstring)(pad_key+".histos") if self.cfg.OptExist(pad_key+".histos") else []:
+            entries.push_back(pad_key+"."+histo)
         ###---loop over entries and create an entry in the TLegend object
         for entry in entries:
             if self.cfg.OptExist(entry+".legendEntry"):
