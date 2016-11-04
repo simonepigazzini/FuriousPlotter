@@ -337,12 +337,21 @@ class FPPlot:
                     tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(dbins[0]), float(dbins[1]), float(dbins[2]),
                                           nybins, vybins)
                     
+        ###---no binning specified
+        else:
+            name = "h_"+histo_obj.GetName()
+                    
         # draw histo
-        name = tmp.GetName() if 'tmp' in locals() else tmp_histo.GetName()
+        if 'name' not in locals():
+            name = tmp.GetName() if 'tmp' in locals() else tmp_histo.GetName()
         var = self.cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
         cut = self.cfg.GetOpt(std.string)(histo_key+".cut") if self.cfg.OptExist(histo_key+".cut") else ""
         histo_obj.Draw(var, cut, "goff")
 
+        # get histogram if binning was not specified
+        if 'tmp_histo' not in locals():
+            tmp_histo = ROOT.gDirectory.Get(name)
+        
         # convert TProfile2D in plain TH2F
         if 'tmp' in locals():
             for xbin in range(1, tmp.GetNbinsX()+1):                
