@@ -357,6 +357,7 @@ class FPPlot:
             for xbin in range(1, tmp.GetNbinsX()+1):                
                 for ybin in range(1, tmp.GetNbinsY()+1):
                     tmp_histo.SetBinContent(xbin, ybin, tmp.GetBinContent(xbin, ybin))
+                    tmp_histo.SetBinError(xbin, ybin, tmp.GetBinError(xbin, ybin))
 
             tmp.Delete()
                                             
