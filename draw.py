@@ -20,8 +20,8 @@ sys.argv = oldargv
 if __name__ == "__main__":
 
     ROOT.gROOT.SetBatch(True)
-    if ROOT.gSystem.Load("CfgManagerDict.so") == -1:
-        ROOT.gSystem.Load("CfgManager/lib/CfgManagerDict.so")
+    if ROOT.gSystem.Load("libCFGMan.so") == -1:
+        ROOT.gSystem.Load("CfgManager/lib/libCFGMan.so")
     
     parser = argparse.ArgumentParser (description = 'Draw plots from ROOT files')
     parser.add_argument('-m', '--mod', type=str, default='', help='config file modifiers')
