@@ -203,11 +203,11 @@ class FPPlot:
             #---build line to be processed, replacing aliases        
             operation = self.cfg.GetOpt(std.string)(histo_key+".operation")
             operation = operation.replace(" ", "")
-            self.histos[histo_key] = self.parseOperation(operation, srcs)
+            self.histos[histo_key] = self.operationParser(operation, srcs)
             self.histos[histo_key].SetName(histo_key.replace(".", "_"))
 
     ###---operations-----------------------------------------------------
-    def parseOperation(self, operation, srcs):
+    def operationParser(self, operation, srcs):
         """
         Read operation string recursively:
         + call function for builtin/custom operations (efficiency, fit slices, ...)
@@ -220,7 +220,7 @@ class FPPlot:
             args = []
             for token in tokens:
                 if "(" in token:
-                    ret = self.parseOperation(token, srcs)
+                    ret = self.operationParser(token, srcs)
                     args.append(ret.GetName())
                     srcs[ret.GetName()] = ret
                 elif token != "":
@@ -417,17 +417,16 @@ class FPPlot:
         - current directory
         - self.histos container
         """
-        
+
         obj_def = line[line.index("=")+1:line.rfind(")")] if ")" in line else ""
+        obj_def = "" if '"' in line[:line.index("=")] else obj_def
         if obj_def != "":
             var_name = line[:line.index("=")-1].split()[-1]
-            tokens = re.findall("\w+", obj_def)                    
-            if tokens[0] == "new":
-                ROOT.gROOT.ProcessLine("gDirectory->Append("+var_name+")")
+            tokens = re.findall("\w+", obj_def)
+            if tokens[0] == "new" and ROOT.gROOT.ProcessLine("gDirectory->Append("+var_name+")"):
                 obj_name = tokens[2]
-            else:
-                ROOT.gROOT.ProcessLine("gDirectory->Append(&"+var_name+")")
+            elif ROOT.gROOT.ProcessLine("gDirectory->Append(&"+var_name+")"):
                 obj_name = tokens[1]
-            if ROOT.gDirectory.Get(obj_name):
+            if "obj_name" in locals() and ROOT.gDirectory.Get(obj_name):
                 self.histos[obj_name] = ROOT.gDirectory.Get(obj_name)
                 self.histos[var_name] = self.histos[obj_name]
