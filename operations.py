@@ -145,7 +145,42 @@ def quantile_binning(args, srcs):
         h_tmp = srcs[args[0]].Clone("tmp")
 
     return h_tmp
-                
+
+def quantile_profiling(args, srcs):
+    """Use quatiles so set asymmetric errors to standard profiles of 2D histograms. 
+    Options:
+    1) when only one value is specified the function calculates two quatiles: 0.5-opt/2, 0.5+opt/2
+    2) the first argument must a TH2.
+    """
+
+    ### check input arguments
+    if len(args) < 2:
+        printMessage("QuintileProf: specify at least two arguments Histogram, quantile", -1)
+        exit(-1)
+    nbins = srcs[args[0]].GetNbinsX()
+
+    ### define quantiles
+    if len(args) == 2:
+        probs = array('d', [0.5-float(args[1])/2., 0.5, 0.5+float(args[1])/2.])
+    else:
+        probs = array('d', [float(args[1]), 0.5, float(args[2])])
+    quantiles = array('d', [0, 0, 0])
+
+    ### create output histogram
+    h_tmp = ROOT.TGraphAsymmErrors()
+    
+    ### compute errors for each x bin
+    h_projx = srcs[args[0]].ProjectionX()
+    for xbin in range(1, nbins+1):
+        h_proj = srcs[args[0]].ProjectionY("_py", xbin, xbin, "o")
+        if h_proj.GetEntries() > 0:
+            h_proj.GetQuantiles(3, quantiles, probs)
+            h_tmp.SetPoint(h_tmp.GetN(), h_projx.GetBinCenter(xbin), quantiles[1])
+            h_tmp.SetPointError(h_tmp.GetN()-1, 0, 0, quantiles[1]-quantiles[0], quantiles[2]-quantiles[1])
+            quantiles = array('d', [0, 0, 0])
+
+    return h_tmp
+
 dictionary = dict(Add=add, Sub=sub, Mul=mul, Div=div, Eff=eff, FitSlicesX=fit_slices_x, FitSlicesY=fit_slices_y,
-                  QuantileBinning=quantile_binning)
+                  QuantileBinning=quantile_binning, QuantileProf=quantile_profiling)
 

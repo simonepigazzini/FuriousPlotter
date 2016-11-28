@@ -205,6 +205,8 @@ class FPPlot:
             operation = operation.replace(" ", "")
             self.histos[histo_key] = self.operationParser(operation, srcs)
             self.histos[histo_key].SetName(histo_key.replace(".", "_"))
+            if "Graph" in self.histos[histo_key].ClassName():
+                ROOT.gDirectory.Append(self.histos[histo_key])
 
     ###---operations-----------------------------------------------------
     def operationParser(self, operation, srcs):
@@ -216,7 +218,7 @@ class FPPlot:
         #---recursive
         func = operation[:operation.index("(")]
         if func in self.functions:            
-            tokens = re.findall(".*\(.*\)|\w+", operation[operation.index("(")+1:operation.rfind(")")])
+            tokens = re.findall(".*\(.*\)|[\w\.]+", operation[operation.index("(")+1:operation.rfind(")")])
             args = []
             for token in tokens:
                 if "(" in token:
@@ -360,7 +362,7 @@ class FPPlot:
                     tmp_histo.SetBinError(xbin, ybin, tmp.GetBinError(xbin, ybin))
 
             tmp.Delete()
-                                            
+
         return tmp_histo
 
     ###---set object style---------------------------------------------
