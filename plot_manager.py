@@ -128,9 +128,10 @@ class FPPlot:
         header = self.cfg.GetOpt(pad_key+".legendHeader") if self.cfg.OptExist(pad_key+".legendHeader") else ""
 
         ###---Create legend using the buildin BuildLegend TPad method:
-        ###   this is a workaround in order to be able to draw legends in different pads (probably a ROOT bug)
-        lg = self.pads[pad_key].BuildLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]), header)
+        ###   this is a workaround in order to be able to draw legends in different pads (probably a ROOT bug)        
+        lg = self.pads[pad_key].BuildLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]))
         lg.Clear()
+        lg.SetHeader(header)
         lg.SetFillStyle(0)
 
         entries = self.cfg.GetOpt(vstring)(pad_key+".legendEntries") if self.cfg.OptExist(pad_key+".legendEntries") else vstring()
@@ -168,7 +169,7 @@ class FPPlot:
                 opt = self.cfg.GetOpt(std.string)(entry+".legendEntry", 1) if self.cfg.OptExist(entry+".legendEntry", 1) else "lpf"
                 entry = self.cfg.GetOpt(std.string)(entry+".objName") if self.cfg.OptExist(entry+".objName") else entry
                 lg.AddEntry(self.histos[entry], label, opt)
-                        
+
         return lg
 
     ###---Print canvas----------------------------------------------------
