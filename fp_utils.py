@@ -43,6 +43,13 @@ def processLines(lines):
 def writeOutput(output, write_procs):
     """Spawn a process to write each output file"""
 
+    #---check for terminated processes and cleanup
+    for idx, proc in enumerate(write_procs):
+        if not proc.is_alive():
+            proc.join()
+            write_procs.pop(idx)
+
+    #---spawn new processes
     for ext, name in output['files'].items():
         proc = mp.Process(target=writeFile, args=(output['canvas'], name, ext))
         proc.start()
