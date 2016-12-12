@@ -21,9 +21,10 @@ class FPPlot:
     def __init__(self, plot_name, cfg, plugin_funcs):
         self.name       = plot_name
         self.cfg        = cfg
-        self.files      = {}
+        self.output     = {}
+        self.files      = {}        
         self.histos     = odict()
-        self.pads       = odict()
+        self.pads       = odict()        
         self.basedir    = ""
         self.functions  = plugin_funcs
 
@@ -174,14 +175,24 @@ class FPPlot:
 
     ###---Print canvas----------------------------------------------------
     def savePlotAs(self, exts):
-        "Print canvas to specified file format"
+        """Print canvas to specified file format"""
 
         outDir = self.cfg.GetOpt("draw.outDir") if self.cfg.OptExist("draw.outDir") else "plots"
     
         subprocess.getoutput("mkdir -p "+outDir)
+        file_names = {}
         for ext in exts:
-            self.pads[self.name].Print(outDir+"/"+self.name+"."+ext, ext)
-            
+            file_names[ext] = outDir+"/"+self.name+"."+ext
+        self.output = {'canvas' : self.pads[self.name],
+                       'files' : file_names
+                       }
+
+    ###---retrive canvas and save directive-------------------------------
+    def getOutput(self):
+        """Returns self.output a dictionary with the canvans and output filenames """
+
+        return self.output
+        
     ###---process histos--------------------------------------------------
     def processHistogram(self, histo_key):
         """Process all the histograms defined in the canvas, steering the histogram creation and drawing"""

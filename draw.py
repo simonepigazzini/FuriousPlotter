@@ -5,6 +5,7 @@ import re
 import time
 import argparse
 import os
+import copy
 import subprocess
 import ROOT
 
@@ -73,6 +74,8 @@ if __name__ == "__main__":
             FPTreeCreator(cfg, tree_name, plugin_funcs)
 
     #---Make plots with FPPlots
+    #---keep track of write process running in parallel
+    write_procs = []
     #---create line object for drawing custom lines
     ROOT.gROOT.ProcessLine("TLine line;")
     ROOT.gROOT.ProcessLine("TLatex latex;")
@@ -80,6 +83,13 @@ if __name__ == "__main__":
         for plot_name in cfg.GetOpt(vstring)("draw.plots"):
             printMessage("Drawing <"+colors.CYAN+plot_name+colors.DEFAULT+">", 1)        
             plot = FPPlot(plot_name, cfg, plugin_funcs)
+            output = copy.deepcopy(plot.getOutput())
+            del plot
+            #---write output in parallel
+            writeOutput(output, write_procs)
+    #---close write parallel processes
+    for proc in write_procs:
+        proc.join()
         
     #---Post-proc
     if cfg.OptExist("draw.postProcCommands"):

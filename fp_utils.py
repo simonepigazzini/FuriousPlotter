@@ -6,6 +6,7 @@ import time
 import argparse
 import os
 import subprocess
+import multiprocessing as mp
 import ROOT
 
 from ROOT import std
@@ -37,3 +38,18 @@ def processLines(lines):
     
     for line in lines:
         ROOT.gROOT.ProcessLine(line)
+
+###---write subprocess manager----------------------------------------
+def writeOutput(output, write_procs):
+    """Spawn a process to write each output file"""
+
+    for ext, name in output['files'].items():
+        proc = mp.Process(target=writeFile, args=(output['canvas'], name, ext))
+        proc.start()
+        write_procs.append(proc)
+
+###---write single output file----------------------------------------
+def writeFile(canvas, name, ext):
+    """Write single output file. This function is called by the parallel manager"""
+
+    canvas.Print(name, ext)
