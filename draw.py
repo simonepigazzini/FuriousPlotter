@@ -51,7 +51,7 @@ if __name__ == "__main__":
         for plugin in cfg.GetOpt(vstring)("draw.plugins"):
             if ".py" == plugin[-3:]:
                 plugins["py"].append(plugin[:-3])
-            elif ".C" == plugin[-2:]:
+            elif ".C" == plugin[-2:] or ".C+" == plugin[-3:]:
                 plugins["C"].append(plugin)
             elif ".so" == plugin[-3:]:
                 plugins["so"].append(plugin)

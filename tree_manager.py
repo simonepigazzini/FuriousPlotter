@@ -16,6 +16,7 @@ class FPTreeCreator:
     def __init__(self, cfg, key, plugin_funcs):    
         self.key       = key
         self.cfg       = cfg
+        self.files     = []
         self.variables = {}
         self.classes   = []
         self.basetypes = ['float', 'double', 'int', 'unsigned', 'short', 'bool', 'long']
@@ -28,6 +29,9 @@ class FPTreeCreator:
 
         self.basedir.cd()
         self.createOutTree()
+
+        for tfile in self.files:
+            tfile.Close()
                 
     def createOutTree(self):
         """Create the new TTree"""
@@ -93,10 +97,10 @@ class FPTreeCreator:
         cname = self.cfg.GetOpt(std.string)(key+".class") if self.cfg.OptExist(key+".class") else 'fp_'+key.replace(".", "_")
         tname = self.cfg.GetOpt(std.string)(key+".treeName")
         tfile = ROOT.TFile.Open(self.cfg.GetOpt(std.string)(key+".file"), 'READ')
+        self.files.append(tfile)
         ttree = tfile.Get(tname)
         ttree.SetDirectory(self.basedir)
         ttree.SetName('t_'+key.replace(".", "_"))
-        tfile.Close()
 
         ###---Get list of branches to be loaded from cfg, otherwise get whole list of branches
         branches = []
@@ -136,7 +140,7 @@ class FPTreeCreator:
             ROOT.gROOT.ProcessLine(data_table)
             ROOT.gROOT.ProcessLine(data_vect_table)
             ROOT.gROOT.ProcessLine(data_class_table)
-            ROOT.gROOT.ProcessLine('#include \"DynamicTTreeInterface.h\"')
+            ROOT.gROOT.ProcessLine('#include "DynamicTTreeInterface.h"')
             ROOT.gROOT.ProcessLine('#pragma link C++ class '+cname+'+;')
             ROOT.gROOT.ProcessLine('#undef DYNAMIC_TREE_NAME')
             ROOT.gROOT.ProcessLine('#undef DATA_TABLE')
