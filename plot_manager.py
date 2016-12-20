@@ -127,6 +127,7 @@ class FPPlot:
         else:
             pos = [0.6, 0.6, 0.9, 0.9]
         header = self.cfg.GetOpt(pad_key+".legendHeader") if self.cfg.OptExist(pad_key+".legendHeader") else ""
+        header = self.computeValues(header)
 
         ###---Create legend using the buildin BuildLegend TPad method:
         ###   this is a workaround in order to be able to draw legends in different pads (probably a ROOT bug)        
@@ -141,38 +142,45 @@ class FPPlot:
         ###---loop over entries and create an entry in the TLegend object
         for entry in entries:
             if self.cfg.OptExist(entry+".legendEntry"):
-                ###---get label from cfg then parse it and process c++ calls:
-                ###   - create a new namespace
-                ###   - convert result of c++ call to string
-                ###   - replace call with result in label
                 label = self.cfg.GetOpt(std.string)(entry+".legendEntry", 0)
-                for key, histo in self.histos.items():
-                    for call in re.findall(r'[\%|\s+]'+key+'->\w+\([\w|\"|\,|\-|\_]+\)', label):
-                        call = call.replace('%', '')
-                        call.strip()
-                        nspc = 'n'+''.join(random.choice('abcdefghjkilmnopqrstuvwyz0123456789') for i in range(5))
-                        ROOT.gROOT.ProcessLine("namespace "+nspc+"{::TString str_value;}")
-                        ROOT.gROOT.ProcessLine("namespace "+nspc+"{auto value = ::"+call+";}")
-                        ROOT.gROOT.ProcessLine(nspc+"::str_value += "+nspc+"::value;")
-                        ROOT.gROOT.ProcessLine("namespace "+nspc+"{struct get_value{::TString value = str_value;};}")
-                        value = getattr(ROOT, nspc).get_value().value
-                        match = re.search("\%\.[0-9]+[Ef]\%$", label[:label.find(call)])
-                        if match != None:
-                            # if '.' in value:
-                            #     value = value[:value.find('.')+int(match.group(0)[2:])+1]
-                            value = (match.group(0)[:-1] % float(value))
-                            value = re.sub('E(.*)', r'#scale[0.75]{#times}10^{\1}', value).replace('+','')
-                            value = re.sub('{0+(.*)}', r'{\1}', value)
-                            label = re.sub("\%\.[0-9]+[Ef]\%"+key+"->\w+\([\w|\"|\,|\-|\_]+\)", value, label, 1)
-                        else:
-                            label = re.sub(key+"->\w+\([\w|\"|\,|\-|\_]+\)", value, label, 1)
-                                                
+                label = self.computeValues(label)                                
                 opt = self.cfg.GetOpt(std.string)(entry+".legendEntry", 1) if self.cfg.OptExist(entry+".legendEntry", 1) else "lpf"
                 entry = self.cfg.GetOpt(std.string)(entry+".objName") if self.cfg.OptExist(entry+".objName") else entry
                 lg.AddEntry(self.histos[entry], label, opt)
 
         return lg
 
+    ###---Parse string and replace function calls-------------------------
+    def computeValues(self, string):
+        """
+        Parse string and replace funtion calls with the value returned by the call.
+        Returns the modified string
+        """
+
+        for key, histo in self.histos.items():
+            for call in re.findall(r'[\%|\s+]'+key+'->\w+[\([\w|\"|\,|\-|\_]+\)|\(\)]', string):
+                call = call.replace('%', '')
+                call.strip()
+                method = call[call.find('->')+2:call.find('(')]
+                args_str = call[call.find('(')+1:call.rfind(')')]
+                args = args_str.split(',')
+                for i,arg in enumerate(args):
+                    try:
+                        args[i] = int(arg) if arg.isdigit() else float(arg)
+                    except ValueError:
+                        continue
+                value = str(getattr(histo, method)(*args))
+                match = re.search("\%\.[0-9]+[Ef]\%$", string[:string.find(call)])
+                if match != None:
+                    value = (match.group(0)[:-1] % float(value))
+                    value = re.sub('E(.*)', r'#scale[0.75]{#times}10^{\1}', value).replace('+','')
+                    value = re.sub('{0+(.*)}', r'{\1}', value)
+                    string = re.sub('\%\.[0-9]+[Ef]\%'+key+'->\w+[\([\w|\"|\,|\-|\_]+\)|\(\)]', value, string, 1)
+                else:
+                    string = re.sub('[\%|\s+]'+key+'->\w+[\([\w|\"|\,|\-|\_]+\)|\(\)]', value, string, 1)
+
+        return string
+    
     ###---Print canvas----------------------------------------------------
     def savePlotAs(self, exts):
         """Print canvas to specified file format"""
