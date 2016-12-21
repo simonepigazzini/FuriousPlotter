@@ -64,23 +64,34 @@ class FPPlot:
                     self.processHistogram(histo_key)
                 self.customize(histo_key, self.histos[histo_key])
                 draw_opt += self.cfg.GetOpt(std.string)(histo_key+".drawOptions") if self.cfg.OptExist(histo_key+".drawOptions") else ""
+                if 'NORM' in draw_opt or 'norm' in draw_opt:
+                    if "TH1" in self.histos[histo_key].ClassName():
+                        self.histos[histo_key].Scale(1./self.histos[histo_key].GetEntries())
+                        draw_opt = draw_opt.replace('NORM', '')
+                        draw_opt = draw_opt.replace('norm', '')
+                    else:
+                        draw_opt = draw_opt.replace('NORM', '')
+                        draw_opt = draw_opt.replace('norm', '')
+
                 ### rescale labels and titles if pad is a sub-frame
                 pad.cd()
-                if len(pad_size) == 4:
-                    self.autoRescale(self.histos[histo_key], x_scale=pad_x_scale, y_scale=pad_y_scale)
-                self.histos[histo_key].Draw(draw_opt)
+                if 'goff' not in draw_opt:
+                    if len(pad_size) == 4:
+                        self.autoRescale(self.histos[histo_key], x_scale=pad_x_scale, y_scale=pad_y_scale)
+                    self.histos[histo_key].Draw(draw_opt)
 
-                ### adjust maximum and minimum
-                if not first_histo:
-                    first_histo = histo_key
-                extra_min = self.cfg.GetOpt(float)(self.name+".extraSpaceBelow") if self.cfg.OptExist(self.name+".extraSpaceBelow") else 1.
-                extra_max = self.cfg.GetOpt(float)(self.name+".extraSpaceAbove") if self.cfg.OptExist(self.name+".extraSpaceAbove") else 1.
-                if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMaximum() >= self.histos[first_histo].GetMaximum():
-                    self.histos[first_histo].SetAxisRange(self.histos[first_histo].GetMinimum(),
-                                                          self.histos[histo_key].GetMaximum()*1.1*extra_max, "Y")
-                if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMinimum() <= self.histos[first_histo].GetMinimum():
-                    self.histos[first_histo].SetAxisRange(self.histos[histo_key].GetMinimum()*1.1*extra_min,
-                                                          self.histos[first_histo].GetMaximum(), "Y")
+                    ### adjust maximum and minimum
+                    if not first_histo:
+                        first_histo = histo_key
+                    extra_min = self.cfg.GetOpt(float)(self.name+".extraSpaceBelow") if self.cfg.OptExist(self.name+".extraSpaceBelow") else 1.
+                    extra_max = self.cfg.GetOpt(float)(self.name+".extraSpaceAbove") if self.cfg.OptExist(self.name+".extraSpaceAbove") else 1.
+                    if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMaximum() >= self.histos[first_histo].GetMaximum():
+                        self.histos[first_histo].SetAxisRange(self.histos[first_histo].GetMinimum(),
+                                                              self.histos[histo_key].GetMaximum()*1.1*extra_max, "Y")
+                    if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMinimum() <= self.histos[first_histo].GetMinimum():
+                        self.histos[first_histo].SetAxisRange(self.histos[histo_key].GetMinimum()*1.1*extra_min,
+                                                              self.histos[first_histo].GetMaximum(), "Y")
+                        
             #---apply style to pad
             lg = self.buildLegend(pad_key)
             lg.Draw()            
@@ -164,11 +175,15 @@ class FPPlot:
                 method = call[call.find('->')+2:call.find('(')]
                 args_str = call[call.find('(')+1:call.rfind(')')]
                 args = args_str.split(',')
+                ### try to convert values into either int or float, remove empty arguments from list
                 for i,arg in enumerate(args):
-                    try:
-                        args[i] = int(arg) if arg.isdigit() else float(arg)
-                    except ValueError:
-                        continue
+                    if arg == '':
+                        args.pop(i)
+                    else:
+                        try:
+                            args[i] = int(arg) if arg.isdigit() else float(arg)
+                        except ValueError:
+                            continue
                 value = str(getattr(histo, method)(*args))
                 match = re.search("\%\.[0-9]+[Ef]\%$", string[:string.find(call)])
                 if match != None:
@@ -445,9 +460,9 @@ class FPPlot:
         if obj_def != "":
             var_name = line[:line.index("=")-1].split()[-1]
             tokens = re.findall("\w+", obj_def)
-            if tokens[0] == "new" and ROOT.gROOT.ProcessLine("gDirectory->Append("+var_name+")"):
+            if tokens[0] == "new" and ROOT.gROOT.ProcessLine("gDirectory->Append("+var_name+")")==0:
                 obj_name = tokens[2]
-            elif ROOT.gROOT.ProcessLine("gDirectory->Append(&"+var_name+")"):
+            elif ROOT.gROOT.ProcessLine("gDirectory->Append(&"+var_name+")")==0:
                 obj_name = tokens[1]
             if "obj_name" in locals() and ROOT.gDirectory.Get(obj_name):
                 self.histos[obj_name] = ROOT.gDirectory.Get(obj_name)
