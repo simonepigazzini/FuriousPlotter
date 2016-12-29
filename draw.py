@@ -8,18 +8,17 @@ import os
 import copy
 import subprocess
 import ROOT
+#---Prevent TApplication from showing its useless help message...
+ROOT.PyConfig.IgnoreCommandLineOptions = True
 
 from fp_utils import *
 from plot_manager import *
 from tree_manager import *
 
-oldargv = sys.argv[:]
-sys.argv = [ '-b-' ]
-sys.argv = oldargv
 
 ### MAIN ###
 if __name__ == "__main__":
-
+    
     ROOT.gROOT.SetBatch(True)
     if ROOT.gSystem.Load("libCFGMan.so") == -1:
         ROOT.gSystem.Load("CfgManager/lib/libCFGMan.so")
