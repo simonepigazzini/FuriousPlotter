@@ -43,7 +43,7 @@ if __name__ == "__main__":
     if cmd_opts.debug:
         cfg.Print()    
         
-    #---Load py/C++ plugins(for preproc, style and postproc)
+    #---Load py/C++ plugins, proccess all lines before
     sys.path.insert(1, os.getcwd())
     plugin_funcs = {}
     plugins = {"py" : ['operations'], "C" : [], "so" : [], "line" : []}    
@@ -57,6 +57,7 @@ if __name__ == "__main__":
                 plugins["so"].append(plugin)
             else:
                 plugins["line"].append(plugin)
+    processLines(plugins["line"])
     for plugin in plugins["py"]:
         plugin_module = __import__(plugin)        
         for key, func in getattr(plugin_module, 'dictionary').items():
@@ -65,7 +66,6 @@ if __name__ == "__main__":
         ROOT.gROOT.LoadMacro(macro) 
     for lib in plugins["so"]:
         ROOT.gSystem.Load(lib) 
-    processLines(plugins["line"])
 
     #---Create trees with FPTreeCreator
     if cmd_opts.make_trees and cfg.OptExist("draw.trees"):
