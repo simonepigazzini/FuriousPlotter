@@ -1,0 +1,82 @@
+* FuriousPlotter
+  This python script is meant to provide an interface to ROOT when dealing with TTrees and plots.
+  With FP you can:
+  - Draw plots from trees
+  - Draw plots from objects stored in ROOT files (TH1, TH2, TGraph, ...)
+  - Combine histograms from different trees and different files into the same canvas.
+  - Manipulate the input histogram(s) with predefined operations (Sum, difference, multiplication, ...) or
+    custom function provided as python plugins.
+  - Read and create TTrees without writing all the Branch/SetBranchAddress (done through DynamicTTree).
+
+** Setup
+   FuriousPlotter relies on two other piece of code: CfgManager and DynamicTTree. The first one is essential,
+   the second one is needed only to use the =--make-trees= funtionality.
+   Installation instructions:
+   - =git clone https://github.com/simonepigazzini/FuriousPlotter.git=
+   - =cd FutiousPlotter/=
+   - =git clone https://github.com/simonepigazzini/CfgManager.git=
+   - =git clone https://github.com/simonepigazzini/DynamicTTree.git= (optional)
+   - =cd CfgManager/; make= (optional: =cd make install=). =cd -=
+   - =cd DynamicTTree/; make= (optional: =cd make install=). =cd -=
+   Now FP should work fine, if you want to install it on the system just run:
+   =sudo make install=. This will install the main scripts together with the basic operations and style macros.
+
+** Configuration files
+   FuriousPlotter options are heavely controlled by the configuration files provided through the =-c= command line option.
+   The configuration files is read parsed with CfgManager which handles the options. CfgManager sintax allows to define
+   blocks (=<NewBlock>=) and single options (=src test.root testTree=), both single options and blocks can be copied
+   or updated. Each configuration files can import options from other files (import is specified with the =importCfg= keyword).
+   CfgManager parses options using whitespaces and linebreaks as delimeters: to prevent it from splitting an option
+   containing whitespaces one has to surround it with single quotes ( =src 'My file.root'=).
+   CfgManager allows to define simple for loops:
+   - Range based loops (in the example =i= runs from 0 to 100 excluded):
+     #+BEGIN_EXAMPLE
+     =for i 0 100=
+     loop lines...
+     =end=
+     #+END_EXAMPLE
+   - For each loops (where =items= is an option already defined in the cfg file):
+     #+BEGIN_EXAMPLE
+     =items 0 10 11 17=
+     =for i items=
+     loop lines...
+     =end=
+     #+END_EXAMPLE
+   Each occurence of =$i= where =i= is the counter variable is replaced with its current value   
+   (assuming i=5 in the current loop cycle: =plot_number_$i= ---> =plot_number_5=).
+
+*** Minimal cfg file
+    This example show the skeleton of a cfg file to draw a simple 2D histogram from a 
+    TTree (=tree=) stored in a TFile (=MyFile.root=):
+    #+BEGIN_EXAMPLE
+     <draw>
+     plots aSimplePlot
+     saveAs png pdf root
+     plugins 'FPCanvasStyle.C'
+     postProcCommands 'display plots/aSimplePlot.png' 
+     </draw>
+
+     <aSimplePlot>
+     histos hist
+     <hist>
+         src 'MyFile.root' tree
+         var 'var1:var2'
+         cut 'var3 < 17'
+         bins 100 0 100 3 0 9
+         customize 'SetTitle(";var1 (a.u.);var2 (a.u.);entries;")'
+         drawOptions COLZ
+     </hist>
+     </aSimplePlot>
+    #+END_EXAMPLE
+    The =<draw>= block controls the global options (those that affects all plots):
+    - =plots=: the names of the plots we want to draw (the names must have a corresponding block).
+    - =saveAs=: output format(s), if nothing is specified no output will be saved.
+    - =outDir=: output path.
+    - =plugins=: list of plugins loaded before drawing any plots. ".C" files are loaded, ".so" are loaded as compiled c++ libraries
+      ".py" are loaded as python modules. All other cases are processed as c++ line through =gROOT->ProcessLine()=.
+    - =postProcCommands=: shell command executed after all plots are drawn.
+    The plot block specify the objects contained in the plot (=histos=).
+
+** Draw plots
+   
+
