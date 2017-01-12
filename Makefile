@@ -2,7 +2,6 @@ rootsys = /usr
 
 install:
 	mkdir -p $(rootsys)/etc/root/plugins/FuriousPlotter/
-	cp cfg/* $(rootsys)/etc/root/plugins/FuriousPlotter/
 	cp macros/* $(rootsys)/share/root/macros/
 	cp draw.py $(rootsys)/bin/
 	cp plot_manager.py $(rootsys)/bin/

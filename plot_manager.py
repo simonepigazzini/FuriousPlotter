@@ -29,7 +29,7 @@ class FPPlot:
         self.functions  = plugin_funcs
 
         self.processPads()
-        
+
     ###---define pads-----------------------------------------------------
     def processPads(self):
         """Manage pads
@@ -94,7 +94,7 @@ class FPPlot:
                         
             #---apply style to pad
             lg = self.buildLegend(pad_key)
-            lg.Draw()            
+            lg.Draw()
             ROOT.gPad.Update()
             self.customize(pad_key, pad)
             if len(pad_size) == 4:
@@ -338,6 +338,9 @@ class FPPlot:
                                       float(bins[6]), float(bins[7]), "S")
                 tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                       int(bins[3]), float(bins[4]), float(bins[5]))
+            elif len(bins) == 9:
+                tmp_histo = ROOT.TH3F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                      int(bins[3]), float(bins[4]), float(bins[5]), int(bins[6]), float(bins[7]), float(bins[8]))
                 
         ###---build histograms with variable size bins
         elif self.cfg.OptExist(histo_key+".dbins"):
