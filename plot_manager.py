@@ -19,17 +19,28 @@ class FPPlot:
 
     ###---init function-----------------------------------------------
     def __init__(self, plot_name, cfg, plugin_funcs):
+        self.basedir    = ROOT.gDirectory.CurrentDirectory()
         self.name       = plot_name
         self.cfg        = cfg
         self.output     = {}
+        self.outobjs    = []
         self.files      = {}        
         self.histos     = odict()
         self.pads       = odict()        
-        self.basedir    = ""
         self.functions  = plugin_funcs
-
+        self.outDir     = self.cfg.GetOpt("draw.outDir") if self.cfg.OptExist("draw.outDir") else "plots"
+        subprocess.getoutput("mkdir -p "+self.outDir)
+        
+        ###---main loop
         self.processPads()
 
+        ###---store in separate file object with <writeToFile> option enabled
+        if len(self.outobjs) > 0:
+            self.outFile = ROOT.TFile.Open(self.outDir+"/"+plot_name+"_objs.root", "RECREATE")
+            for obj in self.outobjs:
+                obj.Write()
+            self.outFile.Close()
+        
     ###---define pads-----------------------------------------------------
     def processPads(self):
         """Manage pads
@@ -37,7 +48,7 @@ class FPPlot:
         + create and draw histograms 
         """
 
-        self.basedir = ROOT.gDirectory.CurrentDirectory()
+        self.basedir.cd()
 
         #---if no pad is specified, only the default global canvas is created
         #   histos defined under plot scope are attached to it
@@ -79,6 +90,9 @@ class FPPlot:
                     if len(pad_size) == 4:
                         self.autoRescale(self.histos[histo_key], x_scale=pad_x_scale, y_scale=pad_y_scale)
                     self.histos[histo_key].Draw(draw_opt)
+                    if self.cfg.OptExist(histo_key+".writeToFile"):
+                        write_name = self.cfg.GetOpt(std.string)(histo_key+".writeToFile")
+                        self.outobjs.append(self.histos[histo_key].Clone(write_name))
 
                     ### adjust maximum and minimum
                     if not first_histo:
@@ -199,13 +213,10 @@ class FPPlot:
     ###---Print canvas----------------------------------------------------
     def savePlotAs(self, exts):
         """Print canvas to specified file format"""
-
-        outDir = self.cfg.GetOpt("draw.outDir") if self.cfg.OptExist("draw.outDir") else "plots"
-    
-        subprocess.getoutput("mkdir -p "+outDir)
+  
         file_names = {}
         for ext in exts:
-            file_names[ext] = outDir+"/"+self.name+"."+ext
+            file_names[ext] = self.outDir+"/"+self.name+"."+ext
         self.output = {'canvas' : self.pads[self.name],
                        'files' : file_names
                        }
@@ -253,7 +264,7 @@ class FPPlot:
         #---recursive
         func = operation[:operation.index("(")]
         if func in self.functions:            
-            tokens = re.findall(".*\(.*\)|[\w\.]+", operation[operation.index("(")+1:operation.rfind(")")])
+            tokens = re.findall(".*\(.*\)|[\-\w\.]+", operation[operation.index("(")+1:operation.rfind(")")])
             args = []
             for token in tokens:
                 if "(" in token:
@@ -328,19 +339,30 @@ class FPPlot:
                 tmp_histo = ROOT.TH1F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
             elif len(bins) == 5:
                 tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                              float(bins[3]), float(bins[4]), "S")
+                                              float(bins[3]), float(bins[4]))
             elif len(bins) == 6:
-                tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                try:
+                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                           int(bins[3]), float(bins[4]), float(bins[5]))
+                except ValueError:
+                    tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                              float(bins[3]), float(bins[4]), bins[5])                    
             elif len(bins) == 8:
                 tmp = ROOT.TProfile2D("ht_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                       int(bins[3]), float(bins[4]), float(bins[5]),
-                                      float(bins[6]), float(bins[7]), "S")
+                                      float(bins[6]), float(bins[7]))
                 tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                       int(bins[3]), float(bins[4]), float(bins[5]))
             elif len(bins) == 9:
-                tmp_histo = ROOT.TH3F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                try:
+                    tmp_histo = ROOT.TH3F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                       int(bins[3]), float(bins[4]), float(bins[5]), int(bins[6]), float(bins[7]), float(bins[8]))
+                except ValueError:
+                    tmp = ROOT.TProfile2D("ht_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                          int(bins[3]), float(bins[4]), float(bins[5]),
+                                          float(bins[6]), float(bins[7]), bins[8])
+                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                          int(bins[3]), float(bins[4]), float(bins[5]))
                 
         ###---build histograms with variable size bins
         elif self.cfg.OptExist(histo_key+".dbins"):
@@ -412,6 +434,7 @@ class FPPlot:
         obj_definition_lines = []
         if self.cfg.OptExist(key+".customize"):
             for line in self.cfg.GetOpt(vstring)(key+".customize"):
+                line = self.computeValues(line)
                 if line[:6] != "macro:":
                     line = "this->"+line if line[:4] != "this" else line
                 else:
