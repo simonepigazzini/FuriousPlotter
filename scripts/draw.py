@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import sys
 import re
@@ -11,9 +11,9 @@ import ROOT
 #---Prevent TApplication from showing its useless help message...
 ROOT.PyConfig.IgnoreCommandLineOptions = True
 
-from fp_utils import *
-from plot_manager import *
-from tree_manager import *
+from ExternalTools.FuriousPlotter.fp_utils import *
+from ExternalTools.FuriousPlotter.plot_manager import *
+from ExternalTools.FuriousPlotter.tree_manager import *
 
 
 ### MAIN ###
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     #---Load py/C++ plugins, proccess all lines before
     sys.path.insert(1, os.getcwd())
     plugin_funcs = {}
-    plugins = {"py" : ['operations'], "C" : [], "so" : [], "line" : []}    
+    plugins = {"py" : ['ExternalTools.FuriousPlotter.operations'], "C" : [], "so" : [], "line" : []}    
     if cfg.OptExist("draw.plugins"):        
         for plugin in cfg.GetOpt(vstring)("draw.plugins"):
             if ".py" == plugin[-3:]:
