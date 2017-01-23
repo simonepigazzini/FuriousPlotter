@@ -1,4 +1,5 @@
-#!/usr/bin/python3
+#!/cvmfs/cms.cern.ch/slc6_amd64_gcc530/cms/cmssw/CMSSW_8_0_17/external/slc6_amd64_gcc530/bin/python2.7
+#/opt/rh/python33/root/usr/bin/python3
 
 import sys
 import re
@@ -56,9 +57,10 @@ if __name__ == "__main__":
                 plugins["line"].append(plugin)
     processLines(plugins["line"])
     for plugin in plugins["py"]:
-        plugin_module = __import__(plugin)        
-        for key, func in getattr(plugin_module, 'dictionary').items():
-            plugin_funcs[key] = func
+        plugin_module = __import__(plugin)
+        if hasattr(plugin_module, 'dictionary'):
+            for key, func in getattr(plugin_module, 'dictionary').items():
+                plugin_funcs[key] = func
     for macro in plugins["C"]:
         ROOT.gROOT.LoadMacro(macro) 
     for lib in plugins["so"]:

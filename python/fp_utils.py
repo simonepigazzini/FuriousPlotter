@@ -24,13 +24,13 @@ def printMessage(msg, msg_type):
 
     # info message
     if msg_type == 0:
-        print("> FuriousPlotter: "+msg)
+        print "> FuriousPlotter: "+msg
     # error
     elif msg_type == -1:
-        print(colors.RED+"> FuriousPlotter: ERROR! "+colors.DEFAULT+msg)
+        print colors.RED+"> FuriousPlotter: ERROR! "+colors.DEFAULT+msg
     # success
     elif msg_type == 1:
-        print(colors.GREEN+"> FuriousPlotter: "+colors.DEFAULT+msg)
+        print colors.GREEN+"> FuriousPlotter: "+colors.DEFAULT+msg
 
 ###---process C++ lines-----------------------------------------------
 def processLines(lines):
