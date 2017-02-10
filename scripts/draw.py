@@ -21,6 +21,8 @@ from ExternalTools.FuriousPlotter.tree_manager import *
 if __name__ == "__main__":
     
     ROOT.gROOT.SetBatch(True)
+    #ROOT.gSystem.Load("libFWCoreFWLite.so");
+    #ROOT.FWLiteEnabler.enable();
     
     parser = argparse.ArgumentParser (description = 'Draw plots from ROOT files')
     parser.add_argument('-m', '--mod', type=str, default='', help='config file modifiers')
@@ -30,7 +32,7 @@ if __name__ == "__main__":
     
     cmd_opts = parser.parse_args()
 
-    cfg = ROOT.CfgManager()
+    cfg = ROOT.CfgManager.CfgManager()
     if cmd_opts.cfg != "":
         cfg.ParseConfigFile(cmd_opts.cfg)
     if cmd_opts.mod != "":

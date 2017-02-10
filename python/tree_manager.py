@@ -122,8 +122,19 @@ class FPTreeCreator:
             elif b_len > 1:
                 data_vect_table += ' \\\n DATA('+b_type+", "+branch.GetName()+", "+str(b_len)+")"
             else:
-                data_class_table += ' \\\n DATA('+b_type+", "+branch.GetName()+")"
-
+                if b_type.find('<') != -1:
+                    c_type = b_type[:b_type.find('<')]
+                    c_tmpl = b_type[b_type.find('<'):]
+                else:
+                    c_type = b_type
+                    c_tmpl = ''
+                name = branch.GetName()
+                var = str(name).replace('.', '_')
+                if len(c_tmpl) != 0:
+                    data_class_table += ' \\\n DATA('+c_type+', '+name+', '+var+', '+c_tmpl+')'
+                else:
+                    data_class_table += ' \\\n DATA('+c_type+', '+name+', '+var+')'
+                    
         self.makeDynTTree(key, cname, ttree.GetName(), data_table, data_vect_table, data_class_table)
 
     def makeDynTTree(self, key, cname, tname, data_table, data_vect_table, data_class_table):
