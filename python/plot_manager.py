@@ -29,7 +29,7 @@ class FPPlot:
         self.pads       = odict()        
         self.functions  = plugin_funcs
         self.outDir     = self.cfg.GetOpt("draw.outDir") if self.cfg.OptExist("draw.outDir") else "plots"
-        subprocess.getoutput("mkdir -p "+self.outDir)
+        subprocess.call(["mkdir", "-p", self.outDir])
         
         ###---main loop
         self.processPads()
@@ -273,7 +273,10 @@ class FPPlot:
                     srcs[ret.GetName()] = ret
                 elif token != "":
                     args.append(token)
-            return self.functions[func](args, srcs) 
+            return self.functions[func](args, srcs)
+        else:
+            printMessage("operation "+colors.CYAN+func+colors.DEFAULT+" not found.", -1)
+            exit(0)
         
     ###---get sources----------------------------------------------------
     def sourceParser(self, histo_key):

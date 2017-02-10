@@ -12,7 +12,7 @@ from fp_utils import *
 
 ###---TTree manager class---------------------------------------------
 class FPTreeCreator:
-    """This class is an interface to a generic TTree: it automaticcaly handles the Branch I/O"""
+    """This class is an interface to a generic TTree: it automatically handles the Branch I/O"""
 
     def __init__(self, cfg, key, plugin_funcs):    
         self.key       = key
@@ -22,8 +22,6 @@ class FPTreeCreator:
         self.classes   = []
         self.basetypes = ['float', 'double', 'int', 'unsigned', 'short', 'bool', 'long']
         self.basedir = ROOT.gDirectory.CurrentDirectory()        
-        
-        ROOT.gSystem.Load("DynamicTTreeDict.so")
 
         for tkey in (self.cfg.GetOpt(vstring)(key+".inputs") if self.cfg.OptExist(key+".inputs") else []):
             self.loadTree(tkey)
@@ -136,12 +134,12 @@ class FPTreeCreator:
         ###---Create class and dictionary if needed
         if cname not in self.classes:
             self.classes.append(cname)
-            ROOT.gROOT.ProcessLine('#include "DynamicTTreeBase.h"')
+            ROOT.gROOT.ProcessLine('#include "ExternalTools/DynamicTTree/interface/DynamicTTreeBase.h"')
             ROOT.gROOT.ProcessLine('#define DYNAMIC_TREE_NAME '+cname)
             ROOT.gROOT.ProcessLine(data_table)
             ROOT.gROOT.ProcessLine(data_vect_table)
             ROOT.gROOT.ProcessLine(data_class_table)
-            ROOT.gROOT.ProcessLine('#include "DynamicTTreeInterface.h"')
+            ROOT.gROOT.ProcessLine('#include "ExternalTools/DynamicTTree/interface/DynamicTTreeInterface.h"')
             ROOT.gROOT.ProcessLine('#pragma link C++ class '+cname+'+;')
             ROOT.gROOT.ProcessLine('#undef DYNAMIC_TREE_NAME')
             ROOT.gROOT.ProcessLine('#undef DATA_TABLE')
