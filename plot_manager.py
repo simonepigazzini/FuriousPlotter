@@ -233,7 +233,7 @@ class FPPlot:
 
         srcs = self.sourceParser(histo_key)
         for key in srcs:
-            if srcs[key].ClassName() == "TTree":
+            if srcs[key].ClassName() == "TTree" && and self.cfg.OptExist(histo_key+".var"):
                 srcs[key] = self.makeHistogramFromTTree(srcs[key], histo_key)
             if "Graph" not in srcs[key].ClassName() and not srcs[key].GetSumw2():
                 srcs[key].Sumw2()
