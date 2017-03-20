@@ -60,6 +60,8 @@ if __name__ == "__main__":
     processLines(plugins["line"])
     for plugin in plugins["py"]:
         plugin_module = __import__(plugin)
+        if len(plugin.split('.')) > 1:
+            plugin_module = sys.modules[plugin]
         if hasattr(plugin_module, 'dictionary'):
             for key, func in getattr(plugin_module, 'dictionary').items():
                 plugin_funcs[key] = func

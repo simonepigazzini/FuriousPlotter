@@ -28,7 +28,7 @@ class FPPlot:
         self.histos     = odict()
         self.pads       = odict()        
         self.functions  = plugin_funcs
-        self.outDir     = self.cfg.GetOpt("draw.outDir") if self.cfg.OptExist("draw.outDir") else "plots"
+        self.outDir     = os.path.expandvars(self.cfg.GetOpt("draw.outDir")) if self.cfg.OptExist("draw.outDir") else "plots"
         subprocess.call(["mkdir", "-p", self.outDir])
         
         ###---main loop
@@ -77,7 +77,7 @@ class FPPlot:
                 draw_opt += self.cfg.GetOpt(std.string)(histo_key+".drawOptions") if self.cfg.OptExist(histo_key+".drawOptions") else ""
                 if 'NORM' in draw_opt or 'norm' in draw_opt:
                     if "TH1" in self.histos[histo_key].ClassName():
-                        self.histos[histo_key].Scale(1./self.histos[histo_key].GetEntries())
+                        self.histos[histo_key].Scale(1./self.histos[histo_key].Integral())
                         draw_opt = draw_opt.replace('NORM', '')
                         draw_opt = draw_opt.replace('norm', '')
                     else:
@@ -233,9 +233,9 @@ class FPPlot:
 
         srcs = self.sourceParser(histo_key)
         for key in srcs:
-            if srcs[key].ClassName() == "TTree":
+            if srcs[key].ClassName() == "TTree" and self.cfg.OptExist(histo_key+".var"):
                 srcs[key] = self.makeHistogramFromTTree(srcs[key], histo_key)
-            if "Graph" not in srcs[key].ClassName() and not srcs[key].GetSumw2():
+            if "Graph" not in srcs[key].ClassName() and "TTree" not in srcs[key].ClassName() and not srcs[key].GetSumw2():
                 srcs[key].Sumw2()
             if not self.cfg.OptExist(histo_key+".operation"):
                 if histo_key not in self.histos.keys():
@@ -264,7 +264,7 @@ class FPPlot:
         #---recursive
         func = operation[:operation.index("(")]
         if func in self.functions:            
-            tokens = re.findall(".*\(.*\)|[\-\w\.]+", operation[operation.index("(")+1:operation.rfind(")")])
+            tokens = re.findall('\"[^,]+\"|.*\(.*\)|[\-\w\.]+', operation[operation.index("(")+1:operation.rfind(")")])
             args = []
             for token in tokens:
                 if "(" in token:
@@ -381,9 +381,12 @@ class FPPlot:
                 nybins = vybins.size()-1
                 tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, nxbins, vxbins.data(), nybins, vybins.data())
             elif len(dbins) == 3 and self.cfg.OptExist(dbins[0]):
-                vbins = self.cfg.GetOpt(std.vector(float))(dbins[0])
-                nbins = vbins.size()-1
-                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, nbins, vbins.data(), float(dbins[1]), float(dbins[2]))
+                values = self.cfg.GetOpt(std.vector(float))(dbins[0])
+                vbins = array('d')
+                for value in values: 
+                    vbins.append(value)
+                nbins = values.size()-1
+                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, nbins, vbins, float(dbins[1]), float(dbins[2]))
             elif len(dbins) == 4:
                 if self.cfg.OptExist(dbins[0]):
                     values = self.cfg.GetOpt(std.vector(float))(dbins[0])
@@ -410,7 +413,10 @@ class FPPlot:
         if 'name' not in locals():
             name = tmp.GetName() if 'tmp' in locals() else tmp_histo.GetName()
         var = self.cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
-        cut = self.cfg.GetOpt(std.string)(histo_key+".cut") if self.cfg.OptExist(histo_key+".cut") else ""
+        cut = ""
+        if self.cfg.OptExist(histo_key+".cut"):
+            for next_cut in self.cfg.GetOpt(std.string)(histo_key+".cut"):
+                cut += next_cut+" "
         histo_obj.Draw(var, cut, "goff")
 
         # get histogram if binning was not specified

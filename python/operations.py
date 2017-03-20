@@ -8,7 +8,7 @@ import os
 import subprocess
 import ROOT
 
-from fp_utils import *
+from ExternalTools.FuriousPlotter.fp_utils import *
 from array import array
 
 def add(args, srcs):
