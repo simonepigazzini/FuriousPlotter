@@ -118,8 +118,8 @@ class FPPlot:
         save_opt = self.cfg.GetOpt(vstring)(self.name+".saveAs") if self.cfg.OptExist(self.name+".saveAs") else self.cfg.GetOpt(vstring)("draw.saveAs")
         ###---save canvas if not disabled
         if "goff" not in save_opt:
-            self.savePlotAs(save_opt)        
-            
+            self.savePlotAs(save_opt)
+
     ###---create pad------------------------------------------------------
     def createPad(self, pad_name):
         """Create pad and histos"""
@@ -233,7 +233,7 @@ class FPPlot:
 
         srcs = self.sourceParser(histo_key)
         for key in srcs:
-            if srcs[key].ClassName() == "TTree" && and self.cfg.OptExist(histo_key+".var"):
+            if srcs[key].ClassName() == "TTree" and self.cfg.OptExist(histo_key+".var"):
                 srcs[key] = self.makeHistogramFromTTree(srcs[key], histo_key)
             if "Graph" not in srcs[key].ClassName() and not srcs[key].GetSumw2():
                 srcs[key].Sumw2()
@@ -379,8 +379,11 @@ class FPPlot:
                 tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, nxbins, vxbins.data(), nybins, vybins.data())
             elif len(dbins) == 3 and self.cfg.OptExist(dbins[0]):
                 vbins = self.cfg.GetOpt(std.vector(float))(dbins[0])
+                vxbins = array('d')
+                for value in vbins: 
+                    vxbins.append(value)
                 nbins = vbins.size()-1
-                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, nbins, vbins.data(), float(dbins[1]), float(dbins[2]))
+                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, nbins, vxbins, float(dbins[1]), float(dbins[2]))
             elif len(dbins) == 4:
                 if self.cfg.OptExist(dbins[0]):
                     values = self.cfg.GetOpt(std.vector(float))(dbins[0])
@@ -468,10 +471,11 @@ class FPPlot:
             yaxis.SetLabelSize(yaxis.GetLabelSize()/(x_scale*y_scale))
             yaxis.SetTitleSize(yaxis.GetTitleSize()/(x_scale*y_scale))
             yaxis.SetTitleOffset(yaxis.GetTitleOffset()*x_scale*y_scale)
-            zaxis = obj.GetZaxis()
-            zaxis.SetLabelSize(zaxis.GetLabelSize()/(x_scale*y_scale))
-            zaxis.SetTitleSize(zaxis.GetTitleSize()/(x_scale*y_scale))
-            zaxis.SetTitleOffset(zaxis.GetTitleOffset()*x_scale*y_scale)
+            if 'TH2' in obj.ClassName():
+                zaxis = obj.GetZaxis()
+                zaxis.SetLabelSize(zaxis.GetLabelSize()/(x_scale*y_scale))
+                zaxis.SetTitleSize(zaxis.GetTitleSize()/(x_scale*y_scale))
+                zaxis.SetTitleOffset(zaxis.GetTitleOffset()*x_scale*y_scale)
 
     ###---capture object defined in line passed as argument
     def getNewObject(self, line):
