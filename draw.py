@@ -24,6 +24,7 @@ if __name__ == "__main__":
         ROOT.gSystem.Load("CfgManager/lib/libCFGMan.so")
     
     parser = argparse.ArgumentParser (description = 'Draw plots from ROOT files')
+    parser.add_argument('-p', '--preset', type=str, default='', help='preset option passed to the config parser')
     parser.add_argument('-m', '--mod', type=str, default='', help='config file modifiers')
     parser.add_argument('-c', '--cfg', default='', help='cfg file')
     parser.add_argument('--make-trees', action='store_true', help='recreate every TTree defined in draw.trees')
@@ -32,6 +33,10 @@ if __name__ == "__main__":
     cmd_opts = parser.parse_args()
 
     cfg = ROOT.CfgManager()
+    if cmd_opts.preset != "":
+        for preset in cmd_opts.preset.split(','):
+            print(preset)
+            cfg.ParseConfigString(preset)        
     if cmd_opts.cfg != "":
         cfg.ParseConfigFile(cmd_opts.cfg)
     if cmd_opts.mod != "":
