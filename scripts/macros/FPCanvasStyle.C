@@ -35,7 +35,7 @@ void FPCanvasStyle(TPad* pad, std::string left_text="", std::string right_text="
     bool drawLogo      = false;
 
     pad->SetBottomMargin(0.13);
-    pad->SetLeftMargin(0.18);
+    pad->SetLeftMargin(0.17);
     pad->SetTopMargin(0.08);
     pad->SetRightMargin(0.05);
     if(is2DCOLZ)

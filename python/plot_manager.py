@@ -477,10 +477,11 @@ class FPPlot:
             yaxis.SetLabelSize(yaxis.GetLabelSize()/(x_scale*y_scale))
             yaxis.SetTitleSize(yaxis.GetTitleSize()/(x_scale*y_scale))
             yaxis.SetTitleOffset(yaxis.GetTitleOffset()*x_scale*y_scale)
-            zaxis = obj.GetZaxis()
-            zaxis.SetLabelSize(zaxis.GetLabelSize()/(x_scale*y_scale))
-            zaxis.SetTitleSize(zaxis.GetTitleSize()/(x_scale*y_scale))
-            zaxis.SetTitleOffset(zaxis.GetTitleOffset()*x_scale*y_scale)
+            if 'TH2' in obj.ClassName():
+                zaxis = obj.GetZaxis()
+                zaxis.SetLabelSize(zaxis.GetLabelSize()/(x_scale*y_scale))
+                zaxis.SetTitleSize(zaxis.GetTitleSize()/(x_scale*y_scale))
+                zaxis.SetTitleOffset(zaxis.GetTitleOffset()*x_scale*y_scale)
 
     ###---capture object defined in line passed as argument
     def getNewObject(self, line):
