@@ -56,7 +56,7 @@ class FPTreeCreator:
                 data_class_table += ' \\\n DATA('+v_type+", "+v_name+")"            
 
         self.makeDynTTree(self.key, cname, name, data_table, data_vect_table, data_class_table)
-        
+
         ###---Fill new tree:
         ###   1) automatically with values specified in the variables declaration
         ###   2) processing a user defined scope
@@ -64,9 +64,9 @@ class FPTreeCreator:
             print("TODO")
         else:
             proc_lines = self.cfg.GetOpt(vstring)(self.key+".process")
-            proc = '\n'.join(proc_lines)            
+            proc = '\n'.join(proc_lines)
             ROOT.gROOT.ProcessLine(proc)
-
+            
         new_tree = self.basedir.Get(name)
         tfile = ROOT.TFile.Open(self.cfg.GetOpt(std.string)(self.key+".file"), 'RECREATE')
         new_tree.SetDirectory(tfile)
@@ -105,10 +105,14 @@ class FPTreeCreator:
 
         ###---Get list of branches to be loaded from cfg, otherwise get whole list of branches
         branches = []
+        forced_branches_size = {}
         if self.cfg.OptExist(key+".branches"):
             branches_names = self.cfg.GetOpt(vstring)(key+".branches")
             for branch in branches_names:
-                branches.append(ttree.GetBranch(branch))
+                b_info = branch.split()
+                branches.append(ttree.GetBranch(b_info[0]))
+                if len(b_info) > 1:
+                    forced_branches_size[b_info[0]] = int(b_info[1])
         else:
             branches = ttree.GetListOfBranches()
         ###---Setup the data table for the call to DynamicTTree
@@ -119,6 +123,8 @@ class FPTreeCreator:
             b_leaf = branch.GetLeaf(branch.GetName())
             b_type = b_leaf.GetTypeName()
             b_len  = b_leaf.GetLen()
+            if branch.GetName() in forced_branches_size.keys():
+                b_len = forced_branches_size[branch.GetName()]
             if "_t" == b_type[-2:] and b_len == 1:
                 data_table += ' \\\n DATA('+b_type+", "+branch.GetName()+")"
             elif b_len > 1:
@@ -132,7 +138,7 @@ class FPTreeCreator:
         """Create the DynamicTTree interface"""
 
         self.basedir.cd()
-        
+
         ###---Create class and dictionary if needed
         if cname not in self.classes:
             self.classes.append(cname)
