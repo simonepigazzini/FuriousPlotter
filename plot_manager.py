@@ -69,7 +69,7 @@ class FPPlot:
                 pad_y_scale = float(pad_size[3])-float(pad_size[1])
             first_histo = 0
             for histo in self.cfg.GetOpt(vstring)(pad_key+".histos") if self.cfg.OptExist(pad_key+".histos") else []:
-                draw_opt = "same"
+                draw_opt = "same" if pad.GetListOfPrimitives().GetSize() > 0 else ""
                 histo_key = pad_key+"."+histo
                 if histo_key not in self.histos.keys():
                     self.processHistogram(histo_key)
@@ -235,7 +235,7 @@ class FPPlot:
         for key in srcs:
             if srcs[key].ClassName() == "TTree" and self.cfg.OptExist(histo_key+".var"):
                 srcs[key] = self.makeHistogramFromTTree(srcs[key], histo_key)
-            if "Graph" not in srcs[key].ClassName() and not srcs[key].GetSumw2():
+            if not any(rtype in srcs[key].ClassName() for rtype in ('Graph', 'TF1')) and not srcs[key].GetSumw2():
                 srcs[key].Sumw2()
             if not self.cfg.OptExist(histo_key+".operation"):
                 if histo_key not in self.histos.keys():
@@ -320,9 +320,22 @@ class FPPlot:
                 if src_vect[0] not in self.histos.keys():
                     self.processHistogram(src_vect[0])
                 srcs[alias] = self.histos[src_vect[0]]
+            # last attempt
             else:
-                printMessage("source "+colors.CYAN+src_vect[0]+colors.DEFAULT+" not found.", -1)
-                exit(0)
+                # function (TF1) definition
+                func = ROOT.TF1(alias, src_vect[0])
+                if func.IsValid():
+                    frange = self.cfg.GetOpt(std.vector(float))(histo_key+".bins") if self.cfg.OptExist(histo_key+".bins") else []
+                    if len(frange) > 1:
+                        func.SetRange(frange[0], frange[1])
+                    func.SetLineWidth(2)
+                    func.SetTitle()
+                    srcs[alias] = func                    
+                else:
+                    # bad source
+                    printMessage("source "+colors.CYAN+src_vect[0]+colors.DEFAULT+" not found.", -1)
+                    exit(0)
+                    
             src_vect.erase(src_vect.begin())
 
         self.basedir.cd()
