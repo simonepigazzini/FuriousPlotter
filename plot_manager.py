@@ -7,6 +7,7 @@ import random
 import os
 import subprocess
 import ROOT
+from ROOT.Experimental import TDataFrame
 
 from fp_utils import *
 from array import array
@@ -233,14 +234,14 @@ class FPPlot:
 
         srcs = self.sourceParser(histo_key)
         for key in srcs:
-            if srcs[key].ClassName() == "TTree" and self.cfg.OptExist(histo_key+".var"):
+            if "TDataFrame" in str(type(srcs[key])) and self.cfg.OptExist(histo_key+".var"):
                 srcs[key] = self.makeHistogramFromTTree(srcs[key], histo_key)
-            if not any(rtype in srcs[key].ClassName() for rtype in ('Graph', 'TF1')) and not srcs[key].GetSumw2():
+            if not any(rtype in str(type(srcs[key])) for rtype in ('Graph', 'TF1')) and not srcs[key].GetSumw2():
                 srcs[key].Sumw2()
             if not self.cfg.OptExist(histo_key+".operation"):
                 if histo_key not in self.histos.keys():
                     self.histos[histo_key] = srcs[key].Clone(histo_key.replace(".", "_"))
-                    if "Graph" in self.histos[histo_key].ClassName():
+                    if "Graph" in str(type(self.histos[histo_key])):
                         ROOT.gDirectory.Append(self.histos[histo_key])
                 else:
                     self.histos[histo_key].Add(srcs[key])
@@ -310,7 +311,9 @@ class FPPlot:
             # not a file: try to get it from current open file
             elif histo_file and histo_file.Get(src_vect[0]):
                 srcs[alias] = histo_file.Get(src_vect[0])
-                if "TTree" not in srcs[alias].ClassName() and "TGraph" not in srcs[alias].ClassName():
+                if "TTree" in srcs[alias].ClassName():
+                    srcs[alias] = TDataFrame(src_vect[0], histo_file)
+                elif "TGraph" not in srcs[alias].ClassName():
                     srcs[alias].SetDirectory(self.basedir)
             # try to get object from session workspace
             elif self.basedir.Get(src_vect[0]):
@@ -342,39 +345,44 @@ class FPPlot:
         return srcs
 
     ###---get histogram from tree-------------------------------------------
-    def makeHistogramFromTTree(self, histo_obj, histo_key):
+    def makeHistogramFromTTree(self, data_frame, histo_key):
         "Draw histograms from TTree, histogram type is guessed from specified binning"
 
-        ###---build histograms with fixed size bins 
+        ###---build histograms with fixed size bins
+        obj_name = histo_key.replace(".", "_")
         if self.cfg.OptExist(histo_key+".bins"):
             bins = self.cfg.GetOpt(vstring)(histo_key+".bins")
             if len(bins) == 3:
-                tmp_histo = ROOT.TH1F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
+                tmp_histo = ROOT.TH1F("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
             elif len(bins) == 5:
-                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                tmp_histo = ROOT.TProfile("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                               float(bins[3]), float(bins[4]))
             elif len(bins) == 6:
                 try:
-                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                    tmp_histo = ROOT.TH2F("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                           int(bins[3]), float(bins[4]), float(bins[5]))
                 except ValueError:
-                    tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                    tmp_histo = ROOT.TProfile("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                               float(bins[3]), float(bins[4]), bins[5])                    
             elif len(bins) == 8:
-                tmp = ROOT.TProfile2D("ht_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                      int(bins[3]), float(bins[4]), float(bins[5]),
-                                      float(bins[6]), float(bins[7]))
-                tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                      int(bins[3]), float(bins[4]), float(bins[5]))
+                tmp_histo = data_frame.Fill(ROOT.TProfile2D("ht_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                                            int(bins[3]), float(bins[4]), float(bins[5]),
+                                                            float(bins[6]), float(bins[7])),
+                                            
+                # tmp = ROOT.TProfile2D("ht_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                #                       int(bins[3]), float(bins[4]), float(bins[5]),
+                #                       float(bins[6]), float(bins[7]))
+                # tmp_histo = ROOT.TH2F("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                #                       int(bins[3]), float(bins[4]), float(bins[5]))
             elif len(bins) == 9:
                 try:
-                    tmp_histo = ROOT.TH3F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                    tmp_histo = ROOT.TH3F("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                       int(bins[3]), float(bins[4]), float(bins[5]), int(bins[6]), float(bins[7]), float(bins[8]))
                 except ValueError:
-                    tmp = ROOT.TProfile2D("ht_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                    tmp = ROOT.TProfile2D("ht_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                           int(bins[3]), float(bins[4]), float(bins[5]),
                                           float(bins[6]), float(bins[7]), bins[8])
-                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                    tmp_histo = ROOT.TH2F("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                           int(bins[3]), float(bins[4]), float(bins[5]))
                 
         ###---build histograms with variable size bins
@@ -383,20 +391,20 @@ class FPPlot:
             if len(dbins) == 1 and self.cfg.OptExist(dbins[0]):
                 vbins = self.cfg.GetOpt(std.vector(float))(dbins[0])
                 nbins = vbins.size()-1
-                tmp_histo = ROOT.TH1F("h_"+histo_obj.GetName(), histo_key, nbins, vbins.data())
+                tmp_histo = ROOT.TH1F("h_"+obj_name, histo_key, nbins, vbins.data())
             elif len(dbins) == 2 and self.cfg.OptExist(dbins[0]) and self.cfg.OptExist(dbins[1]):
                 vxbins = self.cfg.GetOpt(std.vector(float))(dbins[0])
                 nxbins = vxbins.size()-1
                 vybins = self.cfg.GetOpt(std.vector(float))(dbins[1])
                 nybins = vybins.size()-1
-                tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, nxbins, vxbins.data(), nybins, vybins.data())
+                tmp_histo = ROOT.TH2F("h_"+obj_name, histo_key, nxbins, vxbins.data(), nybins, vybins.data())
             elif len(dbins) == 3 and self.cfg.OptExist(dbins[0]):
                 vbins = self.cfg.GetOpt(std.vector(float))(dbins[0])
                 vxbins = array('d')
                 for value in vbins: 
                     vxbins.append(value)
                 nbins = vbins.size()-1
-                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, nbins, vxbins, float(dbins[1]), float(dbins[2]))
+                tmp_histo = ROOT.TProfile("h_"+obj_name, histo_key, nbins, vxbins, float(dbins[1]), float(dbins[2]))
             elif len(dbins) == 4:
                 if self.cfg.OptExist(dbins[0]):
                     values = self.cfg.GetOpt(std.vector(float))(dbins[0])
@@ -404,7 +412,7 @@ class FPPlot:
                     for value in values: 
                         vxbins.append(value)
                     nxbins = values.size()-1
-                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(nxbins), vxbins,
+                    tmp_histo = ROOT.TH2F("h_"+obj_name, histo_key, int(nxbins), vxbins,
                                           int(dbins[1]), float(dbins[2]), float(dbins[3]))
                 elif self.cfg.OptExist(dbins[3]):
                     values = self.cfg.GetOpt(std.vector(float))(dbins[0])
@@ -412,23 +420,23 @@ class FPPlot:
                     for value in values: 
                         vybins.append(value)
                     nybins = values.size()-1
-                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(dbins[0]), float(dbins[1]), float(dbins[2]),
+                    tmp_histo = ROOT.TH2F("h_"+obj_name, histo_key, int(dbins[0]), float(dbins[1]), float(dbins[2]),
                                           nybins, vybins)
                     
         ###---no binning specified
         else:
-            name = "h_"+histo_obj.GetName()
+            name = "h_"+obj_name
                     
         # draw histo
-        if 'name' not in locals():
-            name = tmp.GetName() if 'tmp' in locals() else tmp_histo.GetName()
-        var = self.cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
-        cut = self.cfg.GetOpt(std.string)(histo_key+".cut") if self.cfg.OptExist(histo_key+".cut") else ""
-        histo_obj.Draw(var, cut, "goff")
+        # if 'name' not in locals():
+        #     name = tmp.GetName() if 'tmp' in locals() else tmp_histo.GetName()
+        # var = self.cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
+        # cut = self.cfg.GetOpt(std.string)(histo_key+".cut") if self.cfg.OptExist(histo_key+".cut") else ""
+        # data_frame.Draw(var, cut, "goff")
 
         # get histogram if binning was not specified
-        if 'tmp_histo' not in locals():
-            tmp_histo = ROOT.gDirectory.Get(name)
+        # if 'tmp_histo' not in locals():
+        #     tmp_histo = ROOT.gDirectory.Get(name)
         
         # convert TProfile2D in plain TH2F
         if 'tmp' in locals():
