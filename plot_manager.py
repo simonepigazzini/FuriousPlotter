@@ -6,6 +6,7 @@ import time
 import random
 import os
 import subprocess
+import copy
 import ROOT
 from ROOT.Experimental import TDataFrame
 
@@ -233,10 +234,12 @@ class FPPlot:
         """Process all the histograms defined in the canvas, steering the histogram creation and drawing"""
 
         srcs = self.sourceParser(histo_key)
-        for key in srcs:
+        keys = [key for key in srcs]
+        for key in keys:
             if "TDataFrame" in str(type(srcs[key])) and self.cfg.OptExist(histo_key+".var"):
-                srcs[key] = self.makeHistogramFromTTree(srcs[key], histo_key)
-            if not any(rtype in str(type(srcs[key])) for rtype in ('Graph', 'TF1')) and not srcs[key].GetSumw2():
+                srcs["tdf_"+key] = srcs[key]
+                srcs[key] = self.makeHistogramFromTTree(srcs["tdf_"+key], histo_key)
+            if any(rtype in str(type(srcs[key])) for rtype in ('TProfile', 'TH')) and not srcs[key].GetSumw2():
                 srcs[key].Sumw2()
             if not self.cfg.OptExist(histo_key+".operation"):
                 if histo_key not in self.histos.keys():
@@ -348,15 +351,28 @@ class FPPlot:
     def makeHistogramFromTTree(self, data_frame, histo_key):
         "Draw histograms from TTree, histogram type is guessed from specified binning"
 
-        ###---build histograms with fixed size bins
+        ###---build histograms with fixed size bins using TDataFrame methods
         obj_name = histo_key.replace(".", "_")
+        #---translate variables and filter data before building the histogram
+        #   NOTE: single instance access in arrays is not supported (so "array[0]" will fail:
+        #         as a dirty workaround al variables (FIXME -> and cuts!) are passed to the Define
+        #         method without actually renaming them (and somehow this works...)
+        selected = data_frame.Filter(self.cfg.GetOpt(std.string)(histo_key+".cut") if self.cfg.OptExist(histo_key+".cut") else "1")
+        variables = self.cfg.GetOpt(std.string)(histo_key+".var").split(":")
+        for var in variables:
+            try:
+                selected = selected.Define(var, var)
+            except:
+                selected = selected
         if self.cfg.OptExist(histo_key+".bins"):
             bins = self.cfg.GetOpt(vstring)(histo_key+".bins")
             if len(bins) == 3:
-                tmp_histo = ROOT.TH1F("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
+                tmp_histo = selected.Histo1D(("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2])),
+                                             variables[0])
             elif len(bins) == 5:
-                tmp_histo = ROOT.TProfile("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                              float(bins[3]), float(bins[4]))
+                tmp_histo = selected.Profile1D(("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                                int(bins[3]), float(bins[4])),
+                                               variables[0], variables[1])
             elif len(bins) == 6:
                 try:
                     tmp_histo = ROOT.TH2F("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
@@ -365,15 +381,13 @@ class FPPlot:
                     tmp_histo = ROOT.TProfile("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                               float(bins[3]), float(bins[4]), bins[5])                    
             elif len(bins) == 8:
-                tmp_histo = data_frame.Fill(ROOT.TProfile2D("ht_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                                            int(bins[3]), float(bins[4]), float(bins[5]),
-                                                            float(bins[6]), float(bins[7])),
-                                            
-                # tmp = ROOT.TProfile2D("ht_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                #                       int(bins[3]), float(bins[4]), float(bins[5]),
-                #                       float(bins[6]), float(bins[7]))
-                # tmp_histo = ROOT.TH2F("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                #                       int(bins[3]), float(bins[4]), float(bins[5]))
+                dfdef = data_frame.Define("lc_0", "lc[0]").Define("lc_1", "lc[1]")
+                var_str = self.cfg.GetOpt(std.string)(histo_key+".var").replace("[0]","_0").replace("[1]","_1")
+                variables = var_str.split(":")
+                tmp_histo = dfdef.Fill(ROOT.TProfile2D("ht_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                                                       int(bins[3]), float(bins[4]), float(bins[5]),
+                                                       float(bins[6]), float(bins[7])),
+                                       variables)
             elif len(bins) == 9:
                 try:
                     tmp_histo = ROOT.TH3F("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
