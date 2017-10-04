@@ -1,5 +1,4 @@
-#!/cvmfs/cms.cern.ch/slc6_amd64_gcc530/cms/cmssw/CMSSW_8_0_17/external/slc6_amd64_gcc530/bin/python2.7
-#/opt/rh/python33/root/usr/bin/python3
+#!/usr/bin/python
 
 import sys
 import re
