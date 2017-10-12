@@ -22,7 +22,7 @@ if __name__ == "__main__":
     ROOT.gROOT.SetBatch(True)
     if ROOT.gSystem.Load("libCFGMan.so") == -1:
         ROOT.gSystem.Load("CfgManager/lib/libCFGMan.so")
-    
+ 
     parser = argparse.ArgumentParser (description = 'Draw plots from ROOT files')
     parser.add_argument('-p', '--preset', type=str, default='', help='preset option passed to the config parser')
     parser.add_argument('-m', '--mod', type=str, default='', help='config file modifiers')
@@ -70,7 +70,7 @@ if __name__ == "__main__":
         ROOT.gROOT.LoadMacro(macro) 
     for lib in plugins["so"]:
         ROOT.gSystem.Load(lib) 
-
+        
     #---Create trees with FPTreeCreator
     if cmd_opts.make_trees and cfg.OptExist("draw.trees"):
         for tree_name in cfg.GetOpt(vstring)("draw.trees"):
@@ -80,17 +80,34 @@ if __name__ == "__main__":
     #---Make plots with FPPlots
     #---keep track of write process running in parallel
     write_procs = []
+    #---Set default options
+    if not cfg.OptExist("draw.saveAs"):
+        def_ext = vstring()
+        def_ext.push_back("png")
+        def_ext.push_back("pdf")
+        def_ext.push_back("root")
+        cfg.SetOpt("draw.saveAs", def_ext)        
     #---create line object for drawing custom lines
     ROOT.gROOT.ProcessLine("TLine line;")
     ROOT.gROOT.ProcessLine("TLatex latex;")
     if cfg.OptExist("draw.plots"):
+        common_tdf = {}
+        plots = []
         for plot_name in cfg.GetOpt(vstring)("draw.plots"):
-            printMessage("Drawing <"+colors.CYAN+plot_name+colors.DEFAULT+">", 1)        
-            plot = FPPlot(plot_name, cfg, plugin_funcs)
+            printMessage("Creating <"+colors.CYAN+plot_name+colors.DEFAULT+">", 1)        
+            plots.append(FPPlot(plot_name, cfg, plugin_funcs, common_tdf))            
+        for plot in plots:
+            printMessage("Getting sources <"+colors.CYAN+plot.name+colors.DEFAULT+">", 1)        
+            plot.sourceParser()
+        for plot in plots:
+            printMessage("Drawing <"+colors.CYAN+plot.name+colors.DEFAULT+">", 1)        
+            plot.processPads()
+            plot.writeRawObjects()
             output = copy.deepcopy(plot.getOutput())
             del plot
             #---write output in parallel
-            writeOutput(output, write_procs)
+            writeOutput(output, write_procs)            
+            
     #---close write parallel processes
     for proc in write_procs:
         proc.join()

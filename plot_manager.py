@@ -15,41 +15,49 @@ from array import array
 from collections import OrderedDict as odict
 from ROOT import TH1F
 
+ROOT.gROOT.LoadMacro("/home/pigo/Projects/FuriousPlotter/macros/tdfLambdaHelper.cxx+")
+
 ###---plot container class--------------------------------------------
 class FPPlot:
     """Main class: contains all the objects belonging to a plot instance"""
 
     ###---init function-----------------------------------------------
-    def __init__(self, plot_name, cfg, plugin_funcs):
+    def __init__(self, plot_name, cfg, plugin_funcs, common_tdf):
         self.basedir    = ROOT.gDirectory.CurrentDirectory()
         self.name       = plot_name
         self.cfg        = cfg
         self.output     = {}
         self.outobjs    = []
-        self.files      = {}        
+        self.files      = {}
+        self.srcs       = {}
         self.histos     = odict()
         self.pads       = odict()        
         self.functions  = plugin_funcs
+        self.common_tdf = common_tdf
         self.outDir     = self.cfg.GetOpt("draw.outDir") if self.cfg.OptExist("draw.outDir") else "plots"
         subprocess.getoutput("mkdir -p "+self.outDir)
         
         ###---main loop
-        self.processPads()
+        self.createPads()
 
-        ###---store in separate file object with <writeToFile> option enabled
+    ###---store raw object if requested----------------------------------------
+    def writeRawObjects(self):
+        """
+        store in separate file object if <writeToFile> option is enabled
+        """
+        
         if len(self.outobjs) > 0:
             self.outFile = ROOT.TFile.Open(self.outDir+"/"+plot_name+"_objs.root", "RECREATE")
             for obj in self.outobjs:
                 obj.Write()
             self.outFile.Close()
         
-    ###---define pads-----------------------------------------------------
-    def processPads(self):
-        """Manage pads
-        + create global canvas and user defined pads
-        + create and draw histograms 
+    ###---create pads-----------------------------------------------------------
+    def createPads(self):
         """
-
+        create global canvas and user defined pads
+        """
+        
         self.basedir.cd()
 
         #---if no pad is specified, only the default global canvas is created
@@ -59,6 +67,37 @@ class FPPlot:
         self.createPad(self.name)
         for pad_name in pads_names:
             self.createPad(self.name+"."+pad_name)
+
+    ###---create pad------------------------------------------------------
+    def createPad(self, pad_name):
+        """Create pad and histos"""
+
+        self.basedir.cd()
+        
+        # get constructor size parameters        
+        size = self.cfg.GetOpt(vstring)(pad_name+".size") if self.cfg.OptExist(pad_name+".size") else []
+        if pad_name == self.name:
+            if len(size) == 0:                        
+                self.pads[pad_name] = ROOT.TCanvas(pad_name.replace(".", "_"))
+            elif len(size) == 2:
+                self.pads[pad_name] = ROOT.TCanvas(pad_name.replace(".", "_"), "", int(size[0]), int(size[1]))
+            else:
+                printMessage("Global canvas creation: option <size> must contain 0 or 2 values", -1)
+            ROOT.gDirectory.Append(self.pads[self.name])
+        elif len(size) == 4:
+            self.pads[pad_name] = ROOT.TPad(pad_name.replace(".", "_"), "", float(size[0]), float(size[1]), float(size[2]), float(size[3]))
+            self.pads[pad_name].Draw()
+        else:
+            printMessage("TPad size parameters not specified: "+pad_name, -1)
+            exit(0)
+            
+    ###---draw plots in pads-----------------------------------------------------
+    def processPads(self):
+        """Manage pads
+        + create and draw histograms 
+        """
+
+        self.basedir.cd()
 
         for pad_key, pad in self.pads.items():
             if not pad:
@@ -121,29 +160,6 @@ class FPPlot:
         ###---save canvas if not disabled
         if "goff" not in save_opt:
             self.savePlotAs(save_opt)
-
-    ###---create pad------------------------------------------------------
-    def createPad(self, pad_name):
-        """Create pad and histos"""
-
-        self.basedir.cd()
-        
-        # get constructor size parameters        
-        size = self.cfg.GetOpt(vstring)(pad_name+".size") if self.cfg.OptExist(pad_name+".size") else []
-        if pad_name == self.name:
-            if len(size) == 0:                        
-                self.pads[pad_name] = ROOT.TCanvas(pad_name.replace(".", "_"))
-            elif len(size) == 2:
-                self.pads[pad_name] = ROOT.TCanvas(pad_name.replace(".", "_"), "", int(size[0]), int(size[1]))
-            else:
-                printMessage("Global canvas creation: option <size> must contain 0 or 2 values", -1)
-            ROOT.gDirectory.Append(self.pads[self.name])
-        elif len(size) == 4:
-            self.pads[pad_name] = ROOT.TPad(pad_name.replace(".", "_"), "", float(size[0]), float(size[1]), float(size[2]), float(size[3]))
-            self.pads[pad_name].Draw()
-        else:
-            printMessage("TPad size parameters not specified: "+pad_name, -1)
-            exit(0)
 
     ###---legend----------------------------------------------------------
     def buildLegend(self, pad_key):
@@ -233,33 +249,29 @@ class FPPlot:
     def processHistogram(self, histo_key):
         """Process all the histograms defined in the canvas, steering the histogram creation and drawing"""
 
-        srcs = self.sourceParser(histo_key)
-        keys = [key for key in srcs]
+        keys = [key for key in self.srcs]
         for key in keys:
-            if "TDataFrame" in str(type(srcs[key])) and self.cfg.OptExist(histo_key+".var"):
-                srcs["tdf_"+key] = srcs[key]
-                srcs[key] = self.makeHistogramFromTTree(srcs["tdf_"+key], histo_key)
-            if any(rtype in str(type(srcs[key])) for rtype in ('TProfile', 'TH')) and not srcs[key].GetSumw2():
-                srcs[key].Sumw2()
+            if any(rtype in str(type(self.srcs[key])) for rtype in ('TProfile', 'TH')) and not self.srcs[key].GetSumw2():
+                self.srcs[key].Sumw2()
             if not self.cfg.OptExist(histo_key+".operation"):
                 if histo_key not in self.histos.keys():
-                    self.histos[histo_key] = srcs[key].Clone(histo_key.replace(".", "_"))
+                    self.histos[histo_key] = self.srcs[key].Clone(histo_key.replace(".", "_"))
                     if "Graph" in str(type(self.histos[histo_key])):
                         ROOT.gDirectory.Append(self.histos[histo_key])
                 else:
-                    self.histos[histo_key].Add(srcs[key])
-
+                    self.histos[histo_key].Add(self.srcs[key])
+                    
         if self.cfg.OptExist(histo_key+".operation"):
             #---build line to be processed, replacing aliases        
             operation = self.cfg.GetOpt(std.string)(histo_key+".operation")
             operation = operation.replace(" ", "")
-            self.histos[histo_key] = self.operationParser(operation, srcs)
+            self.histos[histo_key] = self.operationParser(operation)
             self.histos[histo_key].SetName(histo_key.replace(".", "_"))
             if "Graph" in self.histos[histo_key].ClassName():
                 ROOT.gDirectory.Append(self.histos[histo_key])
 
     ###---operations-----------------------------------------------------
-    def operationParser(self, operation, srcs):
+    def operationParser(self, operation):
         """
         Read operation string recursively:
         + call function for builtin/custom operations (efficiency, fit slices, ...)
@@ -272,83 +284,91 @@ class FPPlot:
             args = []
             for token in tokens:
                 if "(" in token:
-                    ret = self.operationParser(token, srcs)
+                    ret = self.operationParser(token, self.srcs)
                     args.append(ret.GetName())
-                    srcs[ret.GetName()] = ret
+                    self.srcs[ret.GetName()] = ret
                 elif token != "":
                     args.append(token)
-            return self.functions[func](args, srcs) 
+            return self.functions[func](args, self.srcs) 
         
     ###---get sources----------------------------------------------------
-    def sourceParser(self, histo_key):
+    def sourceParser(self):
         """
-        Get histogram source(s):
+        Get sources for all histograms defined in the plots:
         1) check if src is from file (and if has already been opened)
         2) check if src match a cfg option
         3) if so check if already loaded, otherwise process the source
         """
 
-        srcs = {}
-        histo_file = 0
-        src_vect = self.cfg.GetOpt(vstring)(histo_key+".src")
-        while len(src_vect) > 0:
-            if ":" in src_vect[0]:
-                alias = src_vect[0][0:src_vect[0].find(":")]                
-                src_vect[0] = src_vect[0].replace(alias+":", "")
-            else:
-                alias = src_vect[0]
-            ### try to build the file path
-            #   1) skip grid files
-            #   2) then replace ~ with home dir path (if needed)
-            #   3) if root / is not the starting point and current dir to relative path
-            abs_path = src_vect[0]
-            if ":" not in abs_path:
-                if src_vect[0][0] == "~":
-                    abs_path = os.path.expanduser(src_vect[0])
-                elif "/" in src_vect[0] and src_vect[0][0] != "/":
-                    abs_path = os.path.abspath(src_vect[0])
-            if os.path.isfile(abs_path):
-                if abs_path not in self.files.keys():
-                    self.files[abs_path] = ROOT.TFile.Open(src_vect[0])
-                histo_file = self.files[abs_path]
-            # not a file: try to get it from current open file
-            elif histo_file and histo_file.Get(src_vect[0]):
-                srcs[alias] = histo_file.Get(src_vect[0])
-                if "TTree" in srcs[alias].ClassName():
-                    srcs[alias] = TDataFrame(src_vect[0], histo_file)
-                elif "TGraph" not in srcs[alias].ClassName():
-                    srcs[alias].SetDirectory(self.basedir)
-            # try to get object from session workspace
-            elif self.basedir.Get(src_vect[0]):
-                srcs[alias] = self.basedir.Get(src_vect[0])
-            # not a object in the current file: try to get it from loaded objects
-            elif self.cfg.OptExist(src_vect[0]+".src"):
-                if src_vect[0] not in self.histos.keys():
-                    self.processHistogram(src_vect[0])
-                srcs[alias] = self.histos[src_vect[0]]
-            # last attempt
-            else:
-                # function (TF1) definition
-                func = ROOT.TF1(alias, src_vect[0])
-                if func.IsValid():
-                    frange = self.cfg.GetOpt(std.vector(float))(histo_key+".bins") if self.cfg.OptExist(histo_key+".bins") else []
-                    if len(frange) > 1:
-                        func.SetRange(frange[0], frange[1])
-                    func.SetLineWidth(2)
-                    func.SetTitle()
-                    srcs[alias] = func                    
-                else:
-                    # bad source
-                    printMessage("source "+colors.CYAN+src_vect[0]+colors.DEFAULT+" not found.", -1)
-                    exit(0)
-                    
-            src_vect.erase(src_vect.begin())
+        for pad_key in self.pads.keys():
+            for histo in self.cfg.GetOpt(vstring)(pad_key+".histos") if self.cfg.OptExist(pad_key+".histos") else []:
+                histo_key = pad_key+"."+histo
 
-        self.basedir.cd()
-        return srcs
+                histo_file = 0
+                src_vect = self.cfg.GetOpt(vstring)(histo_key+".src")
+                while len(src_vect) > 0:
+                    if ":" in src_vect[0]:
+                        alias = src_vect[0][0:src_vect[0].find(":")]                
+                        src_vect[0] = src_vect[0].replace(alias+":", "")
+                    else:
+                        alias = src_vect[0]
+                    ### try to build the file path
+                    #   1) skip grid files
+                    #   2) then replace ~ with home dir path (if needed)
+                    #   3) if root / is not the starting point and current dir to relative path
+                    abs_path = src_vect[0]
+                    if ":" not in abs_path:
+                        if src_vect[0][0] == "~":
+                            abs_path = os.path.expanduser(src_vect[0])
+                        elif "/" in src_vect[0] and src_vect[0][0] != "/":
+                            abs_path = os.path.abspath(src_vect[0])
+                    if os.path.isfile(abs_path):
+                        if abs_path not in self.files.keys():
+                            self.files[abs_path] = ROOT.TFile.Open(src_vect[0])
+                        histo_file = self.files[abs_path]
+                    # not a file: try to get it from current open file
+                    elif histo_file and histo_file.Get(src_vect[0]):
+                        self.srcs[alias] = histo_file.Get(src_vect[0])
+                        if "TTree" in self.srcs[alias].ClassName():
+                            if not alias in self.common_tdf.keys():
+                                self.common_tdf["tdfbase"+alias] = TDataFrame(src_vect[0], histo_file.GetName())
+                                self.common_tdf[alias] = self.common_tdf["tdfbase"+alias].Filter("1==1")
+                            if self.cfg.OptExist(histo_key+".var"):
+                                self.srcs[alias] = self.makeHistogramFromTTree(alias, histo_key)
+                            else:
+                                self.srcs[alias] = self.common_tdf[alias]
+                        elif "TGraph" not in self.srcs[alias].ClassName():
+                            self.srcs[alias].SetDirectory(self.basedir)
+                    # try to get object from session workspace
+                    elif self.basedir.Get(src_vect[0]):
+                        self.srcs[alias] = self.basedir.Get(src_vect[0])
+                    # not a object in the current file: try to get it from loaded objects
+                    elif self.cfg.OptExist(src_vect[0]+".src"):
+                        if src_vect[0] not in self.histos.keys():
+                            self.processHistogram(src_vect[0])
+                        self.srcs[alias] = self.histos[src_vect[0]]
+                    # last attempt
+                    else:
+                        # function (TF1) definition
+                        func = ROOT.TF1(alias, src_vect[0])
+                        if func.IsValid():
+                            frange = self.cfg.GetOpt(std.vector(float))(histo_key+".bins") if self.cfg.OptExist(histo_key+".bins") else []
+                            if len(frange) > 1:
+                                func.SetRange(frange[0], frange[1])
+                            func.SetLineWidth(2)
+                            func.SetTitle()
+                            self.srcs[alias] = func                    
+                        else:
+                            # bad source
+                            printMessage("source "+colors.CYAN+src_vect[0]+colors.DEFAULT+" not found.", -1)
+                            exit(0)
+
+                    src_vect.erase(src_vect.begin())
+
+                self.basedir.cd()
 
     ###---get histogram from tree-------------------------------------------
-    def makeHistogramFromTTree(self, data_frame, histo_key):
+    def makeHistogramFromTTree(self, alias, histo_key):
         "Draw histograms from TTree, histogram type is guessed from specified binning"
 
         ###---build histograms with fixed size bins using TDataFrame methods
@@ -357,20 +377,37 @@ class FPPlot:
         #   NOTE: single instance access in arrays is not supported (so "array[0]" will fail:
         #         as a dirty workaround al variables (FIXME -> and cuts!) are passed to the Define
         #         method without actually renaming them (and somehow this works...)
-        selected = data_frame.Filter(self.cfg.GetOpt(std.string)(histo_key+".cut") if self.cfg.OptExist(histo_key+".cut") else "1")
-        variables = self.cfg.GetOpt(std.string)(histo_key+".var").split(":")
+        self.common_tdf[alias] = self.common_tdf[alias].Filter(self.cfg.GetOpt(std.string)(histo_key+".cut") if self.cfg.OptExist(histo_key+".cut") else "1==1")
+        variables = self.cfg.GetOpt(std.string)(histo_key+".var").split(":")        
         for var in variables:
             try:
-                selected = selected.Define(var, var)
+                olderr = sys.stderr
+                sys.stderr = open("/tmp/pystderr")
+                self.common_tdf[alias] = self.common_tdf[alias].Define(var, var)
+                sys.stderr = olderr
             except:
-                selected = selected
+                ###FIXME### Friend trees not yet completely supported by TDF
+                if "[" in var:
+                    tokens = var.split()
+                    for token in tokens:
+                        if "[" in token:
+                            array = token[:token.find("[")]
+                            index = token[token.find("[")+1:token.find("]")]
+                            try:
+                                self.common_tdf[alias] = ROOT.lambdaForArrays(self.common_tdf[alias], array, index)
+                            except:
+                                try:
+                                    self.common_tdf[alias] = ROOT.lambdaForArraysInt(self.common_tdf[alias], array, int(index))
+                                except:
+                                    continue                                    
+
         if self.cfg.OptExist(histo_key+".bins"):
             bins = self.cfg.GetOpt(vstring)(histo_key+".bins")
             if len(bins) == 3:
-                tmp_histo = selected.Histo1D(("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2])),
-                                             variables[0])
+                tmp_histo = self.common_tdf[alias].Histo1D(("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2])),
+                                               variables[0])
             elif len(bins) == 5:
-                tmp_histo = selected.Profile1D(("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
+                tmp_histo = self.common_tdf[alias].Profile1D(("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                                 int(bins[3]), float(bins[4])),
                                                variables[0], variables[1])
             elif len(bins) == 6:
@@ -381,13 +418,11 @@ class FPPlot:
                     tmp_histo = ROOT.TProfile("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
                                               float(bins[3]), float(bins[4]), bins[5])                    
             elif len(bins) == 8:
-                dfdef = data_frame.Define("lc_0", "lc[0]").Define("lc_1", "lc[1]")
-                var_str = self.cfg.GetOpt(std.string)(histo_key+".var").replace("[0]","_0").replace("[1]","_1")
-                variables = var_str.split(":")
-                tmp_histo = dfdef.Fill(ROOT.TProfile2D("ht_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                                       int(bins[3]), float(bins[4]), float(bins[5]),
-                                                       float(bins[6]), float(bins[7])),
-                                       variables)
+                tmp_histo = self.common_tdf[alias].Profile2D(("ht_"+obj_name, histo_key,
+                                                int(bins[0]), float(bins[1]), float(bins[2]),
+                                                int(bins[3]), float(bins[4]), float(bins[5]),
+                                                float(bins[6]), float(bins[7])),
+                                               variables[0], variables[1], variables[2])
             elif len(bins) == 9:
                 try:
                     tmp_histo = ROOT.TH3F("h_"+obj_name, histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
