@@ -60,3 +60,21 @@ def writeFile(canvas, name, ext):
     """Write single output file. This function is called by the parallel manager"""
 
     canvas.Print(name, ext)
+
+###---evaluate string as int------------------------------------------
+###---Note this isn't the safest way but the fastest
+def eval_i(expr):
+    """
+    Evaluate expression an cast result as int
+    """
+
+    return int(eval(expr))
+
+###---evaluate string as float----------------------------------------
+###---Note this isn't the safest way but the fastest
+def eval_f(expr):
+    """
+    Evaluate expression an cast result as float
+    """
+
+    return float(eval(expr))

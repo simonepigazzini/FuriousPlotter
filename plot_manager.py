@@ -349,33 +349,33 @@ class FPPlot:
         if self.cfg.OptExist(histo_key+".bins"):
             bins = self.cfg.GetOpt(vstring)(histo_key+".bins")
             if len(bins) == 3:
-                tmp_histo = ROOT.TH1F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
+                tmp_histo = ROOT.TH1F("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]))
             elif len(bins) == 5:
-                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                              float(bins[3]), float(bins[4]))
+                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                              eval_f(bins[3]), eval_f(bins[4]))
             elif len(bins) == 6:
                 try:
-                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                          int(bins[3]), float(bins[4]), float(bins[5]))
+                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                          eval_i(bins[3]), eval_f(bins[4]), eval_f(bins[5]))
                 except ValueError:
-                    tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                              float(bins[3]), float(bins[4]), bins[5])                    
+                    tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                              eval_f(bins[3]), eval_f(bins[4]), bins[5])                    
             elif len(bins) == 8:
-                tmp = ROOT.TProfile2D("ht_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                      int(bins[3]), float(bins[4]), float(bins[5]),
-                                      float(bins[6]), float(bins[7]))
-                tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                      int(bins[3]), float(bins[4]), float(bins[5]))
+                tmp = ROOT.TProfile2D("ht_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                      eval_i(bins[3]), eval_f(bins[4]), eval_f(bins[5]),
+                                      eval_f(bins[6]), eval_f(bins[7]))
+                tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                      eval_i(bins[3]), eval_f(bins[4]), eval_f(bins[5]))
             elif len(bins) == 9:
                 try:
-                    tmp_histo = ROOT.TH3F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                      int(bins[3]), float(bins[4]), float(bins[5]), int(bins[6]), float(bins[7]), float(bins[8]))
+                    tmp_histo = ROOT.TH3F("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                      eval_i(bins[3]), eval_f(bins[4]), eval_f(bins[5]), eval_i(bins[6]), eval_f(bins[7]), eval_f(bins[8]))
                 except ValueError:
-                    tmp = ROOT.TProfile2D("ht_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                          int(bins[3]), float(bins[4]), float(bins[5]),
-                                          float(bins[6]), float(bins[7]), bins[8])
-                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                          int(bins[3]), float(bins[4]), float(bins[5]))
+                    tmp = ROOT.TProfile2D("ht_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                          eval_i(bins[3]), eval_f(bins[4]), eval_f(bins[5]),
+                                          eval_f(bins[6]), eval_f(bins[7]), bins[8])
+                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                          eval_i(bins[3]), eval_f(bins[4]), eval_f(bins[5]))
                 
         ###---build histograms with variable size bins
         elif self.cfg.OptExist(histo_key+".dbins"):
@@ -396,7 +396,7 @@ class FPPlot:
                 for value in vbins: 
                     vxbins.append(value)
                 nbins = vbins.size()-1
-                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, nbins, vxbins, float(dbins[1]), float(dbins[2]))
+                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, nbins, vxbins, eval_f(dbins[1]), eval_f(dbins[2]))
             elif len(dbins) == 4:
                 if self.cfg.OptExist(dbins[0]):
                     values = self.cfg.GetOpt(std.vector(float))(dbins[0])
@@ -404,15 +404,15 @@ class FPPlot:
                     for value in values: 
                         vxbins.append(value)
                     nxbins = values.size()-1
-                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(nxbins), vxbins,
-                                          int(dbins[1]), float(dbins[2]), float(dbins[3]))
+                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, eval_i(nxbins), vxbins,
+                                          eval_i(dbins[1]), eval_f(dbins[2]), eval_f(dbins[3]))
                 elif self.cfg.OptExist(dbins[3]):
                     values = self.cfg.GetOpt(std.vector(float))(dbins[0])
                     vybins = array('d')
                     for value in values: 
                         vybins.append(value)
                     nybins = values.size()-1
-                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(dbins[0]), float(dbins[1]), float(dbins[2]),
+                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, eval_i(dbins[0]), eval_f(dbins[1]), eval_f(dbins[2]),
                                           nybins, vybins)
                     
         ###---no binning specified
