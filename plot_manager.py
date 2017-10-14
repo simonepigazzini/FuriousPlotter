@@ -182,9 +182,12 @@ class FPPlot:
         Returns the modified string
         """
 
-        for key, histo in self.histos.items():
-            for call in re.findall(r'[\%|\s+]'+key+'->\w+[\([\w|\"|\,|\-|\_]+\)|\(\)]', string):
-                call = call.replace('%', '')
+        for key, histo in self.histos.items():            
+            while True:
+                calls = re.findall(r'[\%|\s+]'+key+'->\w+[\([\w|\"|\,|\-|\_]+\)|\(\)]', string)
+                if not calls:
+                    break                
+                call = calls[-1].replace('%', '')
                 call.strip()
                 method = call[call.find('->')+2:call.find('(')]
                 args_str = call[call.find('(')+1:call.rfind(')')]
@@ -194,6 +197,7 @@ class FPPlot:
                     if arg == '':
                         args.pop(i)
                     else:
+                        arg = self.computeValues(arg)
                         try:
                             args[i] = int(arg) if arg.isdigit() else float(arg)
                         except ValueError:
@@ -212,13 +216,20 @@ class FPPlot:
     
     ###---Print canvas----------------------------------------------------
     def savePlotAs(self, exts):
-        """Print canvas to specified file format"""
-  
-        file_names = {}
-        for ext in exts:
-            file_names[ext] = self.outDir+"/"+self.name+"."+ext
-        self.output = {'canvas' : self.pads[self.name],
-                       'files' : file_names
+        """
+        - Print canvas to specified file format.
+        - If description is specified, analyze the text searching for expressions to be evaluated.
+        """
+
+        ###---parse description string
+        description = []
+        for line in self.cfg.GetOpt(vstring)(self.name+".description") if self.cfg.OptExist(self.name+".description") else []:
+            description.append(self.computeValues(line))
+        
+        self.output = {'canvas'      : self.pads[self.name],
+                       'basename'    : self.outDir+"/"+self.name,
+                       'description' : description,
+                       'exts'        : exts
                        }
 
     ###---retrive canvas and save directive-------------------------------

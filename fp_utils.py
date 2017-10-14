@@ -20,17 +20,19 @@ class colors:
 
 ###---message logger--------------------------------------------------
 def printMessage(msg, msg_type):
-    """Print colored information message"""
+    """
+    Print colored information message
+    """
 
     # info message
     if msg_type == 0:
-        print("> FuriousPlotter: "+msg)
+        print('> FuriousPlotter: '+msg)
     # error
     elif msg_type == -1:
-        print(colors.RED+"> FuriousPlotter: ERROR! "+colors.DEFAULT+msg)
+        print(colors.RED+'> FuriousPlotter: ERROR! '+colors.DEFAULT+msg)
     # success
     elif msg_type == 1:
-        print(colors.GREEN+"> FuriousPlotter: "+colors.DEFAULT+msg)
+        print(colors.GREEN+'> FuriousPlotter: '+colors.DEFAULT+msg)
 
 ###---process C++ lines-----------------------------------------------
 def processLines(lines):
@@ -41,7 +43,9 @@ def processLines(lines):
 
 ###---write subprocess manager----------------------------------------
 def writeOutput(output, write_procs):
-    """Spawn a process to write each output file"""
+    """
+    Spawn a process to write each output file
+    """
 
     #---check for terminated processes and cleanup
     for idx, proc in enumerate(write_procs):
@@ -50,17 +54,34 @@ def writeOutput(output, write_procs):
             write_procs.pop(idx)
 
     #---spawn new processes
-    for ext, name in output['files'].items():
-        proc = mp.Process(target=writeFile, args=(output['canvas'], name, ext))
+    for ext in output['exts']:
+        proc = mp.Process(target=writeFile, args=(output['canvas'], output['basename']+'.'+ext, ext))
         proc.start()
         write_procs.append(proc)
-
+    if len(output['description']) > 0:
+        proc = mp.Process(target=writeDescription, args=(output['description'], output['basename']+'.txt'))
+        proc.start()
+        write_procs.append(proc)
+        
 ###---write single output file----------------------------------------
 def writeFile(canvas, name, ext):
-    """Write single output file. This function is called by the parallel manager"""
+    """
+    Write single output file. This function is called by the parallel manager
+    """
 
     canvas.Print(name, ext)
 
+###---write single output file----------------------------------------
+def writeDescription(text, name):
+    """
+    Write single output file. This function is called by the parallel manager
+    """
+
+    with open(name, 'w') as desc_file:
+        for line in text:
+            endline = '' if line[-2:] == '\n' else '\n'
+            desc_file.write(line+endline)
+    
 ###---evaluate string as int------------------------------------------
 ###---Note this isn't the safest way but the fastest
 def eval_i(expr):
