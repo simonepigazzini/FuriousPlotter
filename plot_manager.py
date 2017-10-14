@@ -23,7 +23,6 @@ class FPPlot:
         self.name       = plot_name
         self.cfg        = cfg
         self.output     = {}
-        self.outobjs    = []
         self.files      = {}        
         self.histos     = odict()
         self.pads       = odict()        
@@ -33,13 +32,6 @@ class FPPlot:
         
         ###---main loop
         self.processPads()
-
-        ###---store in separate file object with <writeToFile> option enabled
-        if len(self.outobjs) > 0:
-            self.outFile = ROOT.TFile.Open(self.outDir+"/"+plot_name+"_objs.root", "RECREATE")
-            for obj in self.outobjs:
-                obj.Write()
-            self.outFile.Close()
         
     ###---define pads-----------------------------------------------------
     def processPads(self):
@@ -90,9 +82,6 @@ class FPPlot:
                     if len(pad_size) == 4:
                         self.autoRescale(self.histos[histo_key], x_scale=pad_x_scale, y_scale=pad_y_scale)
                     self.histos[histo_key].Draw(draw_opt)
-                    if self.cfg.OptExist(histo_key+".writeToFile"):
-                        write_name = self.cfg.GetOpt(std.string)(histo_key+".writeToFile")
-                        self.outobjs.append(self.histos[histo_key].Clone(write_name))
 
                     ### adjust maximum and minimum
                     if not first_histo:
@@ -225,7 +214,7 @@ class FPPlot:
         description = []
         for line in self.cfg.GetOpt(vstring)(self.name+".description") if self.cfg.OptExist(self.name+".description") else []:
             description.append(self.computeValues(line))
-        
+
         self.output = {'canvas'      : self.pads[self.name],
                        'basename'    : self.outDir+"/"+self.name,
                        'description' : description,
@@ -317,6 +306,12 @@ class FPPlot:
             if os.path.isfile(abs_path):
                 if abs_path not in self.files.keys():
                     self.files[abs_path] = ROOT.TFile.Open(src_vect[0])
+                    ### get primitives objects from all the canvas stored in the file
+                    for fkey in self.files[abs_path].GetListOfKeys():
+                        fobj = self.files[abs_path].Get(fkey.GetName())
+                        if "TCanvas" in fobj.ClassName():
+                            for primitive in fobj.GetListOfPrimitives():
+                                self.basedir.Append(fobj.GetPrimitive(primitive.GetName()))
                 histo_file = self.files[abs_path]
             # not a file: try to get it from current open file
             elif histo_file and histo_file.Get(src_vect[0]):
