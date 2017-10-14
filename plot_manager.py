@@ -344,12 +344,17 @@ class FPPlot:
                     srcs[alias] = func                    
                 else:
                     # bad source
-                    printMessage("source "+colors.CYAN+src_vect[0]+colors.DEFAULT+" not found.", -1)
-                    exit(0)
+                    printMessage("WARNING: source "+colors.CYAN+src_vect[0]+colors.DEFAULT+" not found.", 0)
                     
             src_vect.erase(src_vect.begin())
 
         self.basedir.cd()
+
+        ###---No source found -> ERROR -> exit
+        if not len(srcs):
+            printMessage("No source found.", -1)
+            exit(0)
+            
         return srcs
 
     ###---get histogram from tree-------------------------------------------
