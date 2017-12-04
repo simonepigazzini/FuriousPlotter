@@ -22,61 +22,78 @@
    =sudo make install=. This will install the main scripts together with the basic operations and style macros.
 
 ** Configuration files
-   FuriousPlotter options are heavely controlled by the configuration files provided through the =-c= command line option.
-   The configuration files is read parsed with CfgManager which handles the options. CfgManager sintax allows to define
+   FuriousPlotter options are controlled by the configuration file provided through the =-c= command line option.
+   The configuration file is parsed with CfgManager which handles the options. CfgManager sintax allows to define
    blocks (=<NewBlock>=) and single options (=src test.root testTree=), both single options and blocks can be copied
-   or updated. Each configuration files can import options from other files (import is specified with the =importCfg= keyword).
+   or updated. A dot (=.=) is used to access options within blocks. Blocks can be nested, so the expression
+   =blockA.blockB.myopt= will access option =myopt= in =blockB= which in turn is defined inside =blockA=.
+   By default the first option value from =myopt= is read, in order to specify a particular value within 
+   the option use the =[]= operator: =blockA.blockB.myopt[3]=, this will read the third value in =myopt=
+   Each configuration files can import options from other files (import is specified with the =importCfg= keyword).
    CfgManager parses options using whitespaces and linebreaks as delimeters: to prevent it from splitting an option
    containing whitespaces one has to surround it with single quotes ( =src 'My file.root'=).
    CfgManager allows to define simple for loops:
    - Range based loops (in the example =i= runs from 0 to 100 excluded):
      #+BEGIN_EXAMPLE
-     =for i 0 100=
+     for i 0 100
      loop lines...
-     =end=
+     end
      #+END_EXAMPLE
    - For each loops (where =items= is an option already defined in the cfg file):
      #+BEGIN_EXAMPLE
-     =items 0 10 11 17=
-     =for i items=
+     items 0 10 11 17
+     for i items
      loop lines...
-     =end=
+     end
      #+END_EXAMPLE
    Each occurence of =$i= where =i= is the counter variable is replaced with its current value   
    (assuming i=5 in the current loop cycle: =plot_number_$i= ---> =plot_number_5=).
-
-*** Minimal cfg file
-    This example show the skeleton of a cfg file to draw a simple 2D histogram from a 
-    TTree (=tree=) stored in a TFile (=MyFile.root=):
-    #+BEGIN_EXAMPLE
-     <draw>
-     plots aSimplePlot
-     saveAs png pdf root
-     plugins 'FPCanvasStyle.C'
-     postProcCommands 'display plots/aSimplePlot.png' 
-     </draw>
-
-     <aSimplePlot>
+   - Example on how to use copy and append:
+     #+BEGIN_EXAMPLE
+     <OldBlock>
      histos hist
      <hist>
-         src 'MyFile.root' tree
-         var 'var1:var2'
-         cut 'var3 < 17'
-         bins 100 0 100 3 0 9
-         customize 'SetTitle(";var1 (a.u.);var2 (a.u.);entries;")'
-         drawOptions COLZ
+           src first_src second_src
+           var 'myvar'
+           cut 'selection > 20'
+           bins 100 0 1
      </hist>
-     </aSimplePlot>
-    #+END_EXAMPLE
-    The =<draw>= block controls the global options (those that affects all plots):
-    - =plots=: the names of the plots we want to draw (the names must have a corresponding block).
-    - =saveAs=: output format(s), if nothing is specified no output will be saved.
-    - =outDir=: output path.
-    - =plugins=: list of plugins loaded before drawing any plots. ".C" files are loaded, ".so" are loaded as compiled c++ libraries
-      ".py" are loaded as python modules. All other cases are processed as c++ line through =gROOT->ProcessLine()=.
-    - =postProcCommands=: shell command executed after all plots are drawn.
-    The plot block specify the objects contained in the plot (=histos=).
+     </OldBlock>
 
-** Draw plots
+     <NewBlock= OldBlock>
+           hist.src+= new_src
+           hist.var newvar
+     </NewBlock>
+     #+END_EXAMPLE
+     In this example =OldBlock= is a typical plot definition within FP. =NewBlock= is defined as a copy 
+     (*note the space between the '=' character and the following block name*) of =OldBlock=. This means that all
+     the options defined in =OldBlock= are copied in =NewBlock=. The lines within the =NewBlock= modifies the 
+     content of the block, the first lines *updates* the value of the option =src= within the =hist= block with =new_src=
+     (note that the value is changed for the =hist= block within =NewBlock= and not in =OldBlock=).
+     =new_src= is *appended* so now =hist.src= holds three values =first_src=, =second_src=, =new_src=. In case
+     =new_src= is an option defined in the cfg file its values are all appended to =hist.src=, if one particular value
+     is specified (like =new_src[2]=) only that value is appended.
+     If = is used instead of += the previous values of =hist.src= are overwritten by the values of the specified options.
+     A similar behaviour occours in the next line (=hist.var newvar=) with the difference that in this case no attempt
+     is made to search =newvar= within the existing options, CfgManager assumes that =newvar= is a value not an option.
+     - Option evaluation:
+       options can be evaluated using the following syntax: =newopt $oldopt[0]=, this lines defines a new option
+       (=newopt=) and assign to it the value holded by =oldopt= in the zero position. Any position can be specified
+       but it is mandatory to specify it (even position 0 as in the example).
+
+** The <draw> block
+   The =<draw>= block is the main block and is used to configure global options within FP.
+   List of options within the =<draw>= block:
+   - =plots=: the names of the plots to be drawn. *A block named after the plot is mandatory to define the plot configuration*.
+   - =outDir=: the location of the output direcotry (if left black plots will be saved in =./plots=).
+   - =saveAs=: *mandatory*. Specify the type of output files as accepted by ROOT::TCanvas::SaveAs.
+   - =postProcCommands=: a list of bash commands executed after drawing all the plots.
+   - =plugins=: list of plugins loaded before the execution of the program. A plugin can be:
+     + A ROOT macro with file extension =.C=. This file are compiled and loaded with =gROOT::LoadMacro=
+     + A C++ shared library (=.so=). The library are loaded through ROOT.
+     + A python module (=.py=). The module is loaded and any function defined in =dictionary= are loaded as
+       a possible operation.
+     + Any other type of string is processed with ROOT.ProcessLine(...)
    
+** The <plot> block
 
