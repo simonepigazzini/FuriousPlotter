@@ -82,7 +82,6 @@ class FPPlot:
                     if len(pad_size) == 4:
                         self.autoRescale(self.histos[histo_key], x_scale=pad_x_scale, y_scale=pad_y_scale)
                     self.histos[histo_key].Draw(draw_opt)
-
                     ### adjust maximum and minimum
                     if not first_histo:
                         first_histo = histo_key
@@ -148,7 +147,7 @@ class FPPlot:
         lg = self.pads[pad_key].BuildLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]))
         lg.Clear()
         lg.SetHeader(header)
-        lg.SetFillStyle(0)
+        lg.SetFillStyle(self.cfg.GetOpt(int)(pad_key+".legendStyle") if self.cfg.OptExist(pad_key+".legendStyle") else 0)
 
         entries = self.cfg.GetOpt(vstring)(pad_key+".legendEntries") if self.cfg.OptExist(pad_key+".legendEntries") else vstring()
         for histo in self.cfg.GetOpt(vstring)(pad_key+".histos") if self.cfg.OptExist(pad_key+".histos") else []:
@@ -218,7 +217,8 @@ class FPPlot:
         self.output = {'canvas'      : self.pads[self.name],
                        'basename'    : self.outDir+"/"+self.name,
                        'description' : description,
-                       'exts'        : exts
+                       'exts'        : exts,
+                       'cfg'         : self.cfg.GetSubCfg(self.name)
                        }
 
     ###---retrive canvas and save directive-------------------------------
@@ -487,6 +487,8 @@ class FPPlot:
         Rescale object labels and titles if object is in sub-frame
         """
 
+        x_scale = x_scale if x_scale!=0 else 1
+        y_scale = y_scale if y_scale!=0 else 1        
         if "TPad" not in obj.ClassName():
             xaxis = obj.GetXaxis()
             xaxis.SetLabelSize(xaxis.GetLabelSize()/(x_scale*y_scale))
@@ -499,7 +501,7 @@ class FPPlot:
                 zaxis = obj.GetZaxis()
                 zaxis.SetLabelSize(zaxis.GetLabelSize()/(x_scale*y_scale))
                 zaxis.SetTitleSize(zaxis.GetTitleSize()/(x_scale*y_scale))
-                zaxis.SetTitleOffset(zaxis.GetTitleOffset()*x_scale*y_scale)
+                zaxis.SetTitleOffset(zaxis.GetTitleOffset()*x_scale*y_scale)            
 
     ###---capture object defined in line passed as argument
     def getNewObject(self, line):

@@ -55,7 +55,7 @@ def writeOutput(output, write_procs):
 
     #---spawn new processes
     for ext in output['exts']:
-        proc = mp.Process(target=writeFile, args=(output['canvas'], output['basename']+'.'+ext, ext))
+        proc = mp.Process(target=writeFile, args=(output['canvas'], output['basename']+'.'+ext, ext, output['cfg']))
         proc.start()
         write_procs.append(proc)
     if len(output['description']) > 0:
@@ -64,12 +64,18 @@ def writeOutput(output, write_procs):
         write_procs.append(proc)
         
 ###---write single output file----------------------------------------
-def writeFile(canvas, name, ext):
+def writeFile(canvas, name, ext, cfg):
     """
     Write single output file. This function is called by the parallel manager
     """
 
-    canvas.Print(name, ext)
+    if ext == "root":
+        rfile = ROOT.TFile.Open(name, "RECREATE")
+        canvas.Write()
+        cfg.Write()
+        rfile.Close()
+    else:
+        canvas.Print(name, ext)
 
 ###---write single output file----------------------------------------
 def writeDescription(text, name):
