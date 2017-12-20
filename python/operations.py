@@ -14,6 +14,7 @@ from array import array
 def add(args, srcs):
     name = "add_"+"_".join(args)
     tmp = srcs[args[0]].Clone(name)
+    
     tmp.UseCurrentStyle()
     args.pop(0)
     for arg in args:
@@ -23,6 +24,7 @@ def add(args, srcs):
 def sub(args, srcs):
     name = "sub_"+"_".join(args)
     tmp = srcs[args[0]].Clone(name)
+    
     tmp.UseCurrentStyle()
     args.pop(0)
     for arg in args:
@@ -32,6 +34,7 @@ def sub(args, srcs):
 def mul(args, srcs):
     name = "mul_"+"_".join(args)
     tmp = srcs[args[0]].Clone(name)
+    
     tmp.UseCurrentStyle()
     args.pop(0)
     for arg in args:
@@ -41,10 +44,34 @@ def mul(args, srcs):
 def div(args, srcs):
     name = "div_"+"_".join(args)
     tmp = srcs[args[0]].Clone(name)
+    
     tmp.UseCurrentStyle()
     args.pop(0)
     for arg in args:
         tmp.Divide(srcs[arg])
+    return tmp
+
+def power(args, srcs):
+    """Compute power of bins content for TH1 and TH2 histogram, syntax: Pow(histogram, power)"""
+    name = "pow_"+"_".join(args)
+    tmp = srcs[args[0]].Clone(name)
+    
+    tmp.UseCurrentStyle()
+    power = float(args[1])
+    if '2' in tmp.ClassName():
+        for xbin in range(1, tmp.GetNbinsX()+1):
+            for ybin in range(1, tmp.GetNbinsY()+1):
+                if tmp.GetBinContent(xbin, ybin) != 0:
+                    error = tmp.GetBinError(xbin, ybin)*power*pow(tmp.GetBinContent(xbin, ybin), power-1)
+                    tmp.SetBinContent(xbin, ybin, pow(tmp.GetBinContent(xbin, ybin), power))
+                    tmp.SetBinError(xbin, ybin, error)
+    else:
+        for xbin in range(1, tmp.GetNbinsX()+1):
+            if tmp.GetBinContent(xbin) != 0:
+                error = tmp.GetBinError(xbin)*power*pow(tmp.GetBinContent(xbin), power-1)
+                tmp.SetBinContent(xbin, pow(tmp.GetBinContent(xbin), power))
+                tmp.SetBinError(xbin, error)
+
     return tmp
 
 def eff(args, srcs):
@@ -61,6 +88,22 @@ def eff(args, srcs):
 
     return tmp
 
+def th2_to_th1(args, srcs):
+    """Make 1D histogram of TH2 bin contents, syntax: TH2toTH1(histogram, nbins, min, max)"""
+
+    origin = srcs[args[0]]
+    if len(args) == 4:
+        tmp = ROOT.TH1D("tmp", "", int(args[1]), float(args[2]), float(args[3]))
+    else:
+        tmp = ROOT.TH1D("tmp", "", 100, 0, 0)
+
+    for xbin in range(1, origin.GetNbinsX()+1):
+        for ybin in range(1, origin.GetNbinsY()+1):
+            if origin.GetBinContent(xbin, ybin) != 0:
+                tmp.Fill(origin.GetBinContent(xbin, ybin))
+    
+    return tmp
+            
 def fit_slices_x(args, srcs):
     """Call the fit slices method of TH2 and returns the requested post-fit histogram"""
 
@@ -181,6 +224,7 @@ def quantile_profiling(args, srcs):
 
     return h_tmp
 
-dictionary = dict(Add=add, Sub=sub, Mul=mul, Div=div, Eff=eff, FitSlicesX=fit_slices_x, FitSlicesY=fit_slices_y,
+dictionary = dict(Add=add, Sub=sub, Mul=mul, Div=div, Pow=power, Eff=eff, TH2toTH1=th2_to_th1,
+                  FitSlicesX=fit_slices_x, FitSlicesY=fit_slices_y,
                   QuantileBinning=quantile_binning, QuantileProf=quantile_profiling)
 

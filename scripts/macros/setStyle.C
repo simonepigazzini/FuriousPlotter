@@ -129,6 +129,7 @@ void setStyle()
     // style->SetTimeOffset(Double_t toffset);
     // style->SetHistMinimumZero(kTRUE);
     style->SetOptStat("");
+    style->SetPalette(55);
     
     style->cd();
 }

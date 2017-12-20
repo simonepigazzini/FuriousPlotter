@@ -23,23 +23,15 @@ class FPPlot:
         self.name       = plot_name
         self.cfg        = cfg
         self.output     = {}
-        self.outobjs    = []
         self.files      = {}        
         self.histos     = odict()
         self.pads       = odict()        
         self.functions  = plugin_funcs
-        self.outDir     = os.path.expandvars(self.cfg.GetOpt("draw.outDir")) if self.cfg.OptExist("draw.outDir") else "plots"
+        self.outDir     = self.cfg.GetOpt("draw.outDir") if self.cfg.OptExist("draw.outDir") else "plots"
         subprocess.call(["mkdir", "-p", self.outDir])
         
         ###---main loop
         self.processPads()
-
-        ###---store in separate file object with <writeToFile> option enabled
-        if len(self.outobjs) > 0:
-            self.outFile = ROOT.TFile.Open(self.outDir+"/"+plot_name+"_objs.root", "RECREATE")
-            for obj in self.outobjs:
-                obj.Write()
-            self.outFile.Close()
         
     ###---define pads-----------------------------------------------------
     def processPads(self):
@@ -69,7 +61,7 @@ class FPPlot:
                 pad_y_scale = float(pad_size[3])-float(pad_size[1])
             first_histo = 0
             for histo in self.cfg.GetOpt(vstring)(pad_key+".histos") if self.cfg.OptExist(pad_key+".histos") else []:
-                draw_opt = "same"
+                draw_opt = "same" if pad.GetListOfPrimitives().GetSize() > 0 else ""
                 histo_key = pad_key+"."+histo
                 if histo_key not in self.histos.keys():
                     self.processHistogram(histo_key)
@@ -77,7 +69,7 @@ class FPPlot:
                 draw_opt += self.cfg.GetOpt(std.string)(histo_key+".drawOptions") if self.cfg.OptExist(histo_key+".drawOptions") else ""
                 if 'NORM' in draw_opt or 'norm' in draw_opt:
                     if "TH1" in self.histos[histo_key].ClassName():
-                        self.histos[histo_key].Scale(1./self.histos[histo_key].Integral())
+                        self.histos[histo_key].Scale(1./self.histos[histo_key].GetEntries())
                         draw_opt = draw_opt.replace('NORM', '')
                         draw_opt = draw_opt.replace('norm', '')
                     else:
@@ -90,10 +82,6 @@ class FPPlot:
                     if len(pad_size) == 4:
                         self.autoRescale(self.histos[histo_key], x_scale=pad_x_scale, y_scale=pad_y_scale)
                     self.histos[histo_key].Draw(draw_opt)
-                    if self.cfg.OptExist(histo_key+".writeToFile"):
-                        write_name = self.cfg.GetOpt(std.string)(histo_key+".writeToFile")
-                        self.outobjs.append(self.histos[histo_key].Clone(write_name))
-
                     ### adjust maximum and minimum
                     if not first_histo:
                         first_histo = histo_key
@@ -118,8 +106,8 @@ class FPPlot:
         save_opt = self.cfg.GetOpt(vstring)(self.name+".saveAs") if self.cfg.OptExist(self.name+".saveAs") else self.cfg.GetOpt(vstring)("draw.saveAs")
         ###---save canvas if not disabled
         if "goff" not in save_opt:
-            self.savePlotAs(save_opt)        
-            
+            self.savePlotAs(save_opt)
+
     ###---create pad------------------------------------------------------
     def createPad(self, pad_name):
         """Create pad and histos"""
@@ -159,7 +147,7 @@ class FPPlot:
         lg = self.pads[pad_key].BuildLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]))
         lg.Clear()
         lg.SetHeader(header)
-        lg.SetFillStyle(0)
+        lg.SetFillStyle(self.cfg.GetOpt(int)(pad_key+".legendStyle") if self.cfg.OptExist(pad_key+".legendStyle") else 0)
 
         entries = self.cfg.GetOpt(vstring)(pad_key+".legendEntries") if self.cfg.OptExist(pad_key+".legendEntries") else vstring()
         for histo in self.cfg.GetOpt(vstring)(pad_key+".histos") if self.cfg.OptExist(pad_key+".histos") else []:
@@ -182,9 +170,12 @@ class FPPlot:
         Returns the modified string
         """
 
-        for key, histo in self.histos.items():
-            for call in re.findall(r'[\%|\s+]'+key+'->\w+[\([\w|\"|\,|\-|\_]+\)|\(\)]', string):
-                call = call.replace('%', '')
+        for key, histo in self.histos.items():            
+            while True:
+                calls = re.findall(r'[\%|\s+]'+key+'->\w+[\([\w|\"|\,|\-|\_]+\)|\(\)]', string)
+                if not calls:
+                    break                
+                call = calls[-1].replace('%', '')
                 call.strip()
                 method = call[call.find('->')+2:call.find('(')]
                 args_str = call[call.find('(')+1:call.rfind(')')]
@@ -194,6 +185,7 @@ class FPPlot:
                     if arg == '':
                         args.pop(i)
                     else:
+                        arg = self.computeValues(arg)
                         try:
                             args[i] = int(arg) if arg.isdigit() else float(arg)
                         except ValueError:
@@ -212,13 +204,21 @@ class FPPlot:
     
     ###---Print canvas----------------------------------------------------
     def savePlotAs(self, exts):
-        """Print canvas to specified file format"""
-  
-        file_names = {}
-        for ext in exts:
-            file_names[ext] = self.outDir+"/"+self.name+"."+ext
-        self.output = {'canvas' : self.pads[self.name],
-                       'files' : file_names
+        """
+        - Print canvas to specified file format.
+        - If description is specified, analyze the text searching for expressions to be evaluated.
+        """
+
+        ###---parse description string
+        description = []
+        for line in self.cfg.GetOpt(vstring)(self.name+".description") if self.cfg.OptExist(self.name+".description") else []:
+            description.append(self.computeValues(line))
+
+        self.output = {'canvas'      : self.pads[self.name],
+                       'basename'    : self.outDir+"/"+self.name,
+                       'description' : description,
+                       'exts'        : exts,
+                       'cfg'         : self.cfg.GetSubCfg(self.name)
                        }
 
     ###---retrive canvas and save directive-------------------------------
@@ -235,7 +235,7 @@ class FPPlot:
         for key in srcs:
             if srcs[key].ClassName() == "TTree" and self.cfg.OptExist(histo_key+".var"):
                 srcs[key] = self.makeHistogramFromTTree(srcs[key], histo_key)
-            if "Graph" not in srcs[key].ClassName() and "TTree" not in srcs[key].ClassName() and not srcs[key].GetSumw2():
+            if not any(rtype in srcs[key].ClassName() for rtype in ('Graph', 'TF1')) and not srcs[key].GetSumw2():
                 srcs[key].Sumw2()
             if not self.cfg.OptExist(histo_key+".operation"):
                 if histo_key not in self.histos.keys():
@@ -264,7 +264,7 @@ class FPPlot:
         #---recursive
         func = operation[:operation.index("(")]
         if func in self.functions:            
-            tokens = re.findall('\"[^,]+\"|.*\(.*\)|[\-\w\.]+', operation[operation.index("(")+1:operation.rfind(")")])
+            tokens = re.findall(".*\(.*\)|[\-\w\.]+", operation[operation.index("(")+1:operation.rfind(")")])
             args = []
             for token in tokens:
                 if "(" in token:
@@ -273,10 +273,7 @@ class FPPlot:
                     srcs[ret.GetName()] = ret
                 elif token != "":
                     args.append(token)
-            return self.functions[func](args, srcs)
-        else:
-            printMessage("operation "+colors.CYAN+func+colors.DEFAULT+" not found.", -1)
-            exit(0)
+            return self.functions[func](args, srcs) 
         
     ###---get sources----------------------------------------------------
     def sourceParser(self, histo_key):
@@ -309,6 +306,12 @@ class FPPlot:
             if os.path.isfile(abs_path):
                 if abs_path not in self.files.keys():
                     self.files[abs_path] = ROOT.TFile.Open(src_vect[0])
+                    ### get primitives objects from all the canvas stored in the file
+                    for fkey in self.files[abs_path].GetListOfKeys():
+                        fobj = self.files[abs_path].Get(fkey.GetName())
+                        if "TCanvas" in fobj.ClassName():
+                            for primitive in fobj.GetListOfPrimitives():
+                                self.basedir.Append(fobj.GetPrimitive(primitive.GetName()))
                 histo_file = self.files[abs_path]
             # not a file: try to get it from current open file
             elif histo_file and histo_file.Get(src_vect[0]):
@@ -323,12 +326,30 @@ class FPPlot:
                 if src_vect[0] not in self.histos.keys():
                     self.processHistogram(src_vect[0])
                 srcs[alias] = self.histos[src_vect[0]]
+            # last attempt
             else:
-                printMessage("source "+colors.CYAN+src_vect[0]+colors.DEFAULT+" not found.", -1)
-                exit(0)
+                # function (TF1) definition
+                func = ROOT.TF1(alias, src_vect[0])
+                if func.IsValid():
+                    frange = self.cfg.GetOpt(std.vector(float))(histo_key+".bins") if self.cfg.OptExist(histo_key+".bins") else []
+                    if len(frange) > 1:
+                        func.SetRange(frange[0], frange[1])
+                    func.SetLineWidth(2)
+                    func.SetTitle()
+                    srcs[alias] = func                    
+                else:
+                    # bad source
+                    printMessage("WARNING: source "+colors.CYAN+src_vect[0]+colors.DEFAULT+" not found.", 0)
+                    
             src_vect.erase(src_vect.begin())
 
         self.basedir.cd()
+
+        ###---No source found -> ERROR -> exit
+        if not len(srcs):
+            printMessage("No source found.", -1)
+            exit(0)
+            
         return srcs
 
     ###---get histogram from tree-------------------------------------------
@@ -339,33 +360,33 @@ class FPPlot:
         if self.cfg.OptExist(histo_key+".bins"):
             bins = self.cfg.GetOpt(vstring)(histo_key+".bins")
             if len(bins) == 3:
-                tmp_histo = ROOT.TH1F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]))
+                tmp_histo = ROOT.TH1F("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]))
             elif len(bins) == 5:
-                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                              float(bins[3]), float(bins[4]))
+                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                              eval_f(bins[3]), eval_f(bins[4]))
             elif len(bins) == 6:
                 try:
-                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                          int(bins[3]), float(bins[4]), float(bins[5]))
+                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                          eval_i(bins[3]), eval_f(bins[4]), eval_f(bins[5]))
                 except ValueError:
-                    tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                              float(bins[3]), float(bins[4]), bins[5])                    
+                    tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                              eval_f(bins[3]), eval_f(bins[4]), bins[5])                    
             elif len(bins) == 8:
-                tmp = ROOT.TProfile2D("ht_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                      int(bins[3]), float(bins[4]), float(bins[5]),
-                                      float(bins[6]), float(bins[7]))
-                tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                      int(bins[3]), float(bins[4]), float(bins[5]))
+                tmp = ROOT.TProfile2D("ht_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                      eval_i(bins[3]), eval_f(bins[4]), eval_f(bins[5]),
+                                      eval_f(bins[6]), eval_f(bins[7]))
+                tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                      eval_i(bins[3]), eval_f(bins[4]), eval_f(bins[5]))
             elif len(bins) == 9:
                 try:
-                    tmp_histo = ROOT.TH3F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                      int(bins[3]), float(bins[4]), float(bins[5]), int(bins[6]), float(bins[7]), float(bins[8]))
+                    tmp_histo = ROOT.TH3F("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                      eval_i(bins[3]), eval_f(bins[4]), eval_f(bins[5]), eval_i(bins[6]), eval_f(bins[7]), eval_f(bins[8]))
                 except ValueError:
-                    tmp = ROOT.TProfile2D("ht_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                          int(bins[3]), float(bins[4]), float(bins[5]),
-                                          float(bins[6]), float(bins[7]), bins[8])
-                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(bins[0]), float(bins[1]), float(bins[2]),
-                                          int(bins[3]), float(bins[4]), float(bins[5]))
+                    tmp = ROOT.TProfile2D("ht_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                          eval_i(bins[3]), eval_f(bins[4]), eval_f(bins[5]),
+                                          eval_f(bins[6]), eval_f(bins[7]), bins[8])
+                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]),
+                                          eval_i(bins[3]), eval_f(bins[4]), eval_f(bins[5]))
                 
         ###---build histograms with variable size bins
         elif self.cfg.OptExist(histo_key+".dbins"):
@@ -381,12 +402,12 @@ class FPPlot:
                 nybins = vybins.size()-1
                 tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, nxbins, vxbins.data(), nybins, vybins.data())
             elif len(dbins) == 3 and self.cfg.OptExist(dbins[0]):
-                values = self.cfg.GetOpt(std.vector(float))(dbins[0])
-                vbins = array('d')
-                for value in values: 
-                    vbins.append(value)
-                nbins = values.size()-1
-                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, nbins, vbins, float(dbins[1]), float(dbins[2]))
+                vbins = self.cfg.GetOpt(std.vector(float))(dbins[0])
+                vxbins = array('d')
+                for value in vbins: 
+                    vxbins.append(value)
+                nbins = vbins.size()-1
+                tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, nbins, vxbins, eval_f(dbins[1]), eval_f(dbins[2]))
             elif len(dbins) == 4:
                 if self.cfg.OptExist(dbins[0]):
                     values = self.cfg.GetOpt(std.vector(float))(dbins[0])
@@ -394,15 +415,15 @@ class FPPlot:
                     for value in values: 
                         vxbins.append(value)
                     nxbins = values.size()-1
-                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(nxbins), vxbins,
-                                          int(dbins[1]), float(dbins[2]), float(dbins[3]))
+                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, eval_i(nxbins), vxbins,
+                                          eval_i(dbins[1]), eval_f(dbins[2]), eval_f(dbins[3]))
                 elif self.cfg.OptExist(dbins[3]):
                     values = self.cfg.GetOpt(std.vector(float))(dbins[0])
                     vybins = array('d')
                     for value in values: 
                         vybins.append(value)
                     nybins = values.size()-1
-                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, int(dbins[0]), float(dbins[1]), float(dbins[2]),
+                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, eval_i(dbins[0]), eval_f(dbins[1]), eval_f(dbins[2]),
                                           nybins, vybins)
                     
         ###---no binning specified
@@ -469,6 +490,8 @@ class FPPlot:
         Rescale object labels and titles if object is in sub-frame
         """
 
+        x_scale = x_scale if x_scale!=0 else 1
+        y_scale = y_scale if y_scale!=0 else 1        
         if "TPad" not in obj.ClassName():
             xaxis = obj.GetXaxis()
             xaxis.SetLabelSize(xaxis.GetLabelSize()/(x_scale*y_scale))
@@ -481,7 +504,7 @@ class FPPlot:
                 zaxis = obj.GetZaxis()
                 zaxis.SetLabelSize(zaxis.GetLabelSize()/(x_scale*y_scale))
                 zaxis.SetTitleSize(zaxis.GetTitleSize()/(x_scale*y_scale))
-                zaxis.SetTitleOffset(zaxis.GetTitleOffset()*x_scale*y_scale)
+                zaxis.SetTitleOffset(zaxis.GetTitleOffset()*x_scale*y_scale)            
 
     ###---capture object defined in line passed as argument
     def getNewObject(self, line):
