@@ -303,9 +303,11 @@ class FPPlot:
                     abs_path = os.path.expanduser(src_vect[0])
                 elif "/" in src_vect[0] and src_vect[0][0] != "/":
                     abs_path = os.path.abspath(src_vect[0])
-            if os.path.isfile(abs_path):
+                elif "/eos/user" in src_vect[0]:
+                    abs_path = 'root://eosuser-internal.cern.ch/'+src_vect[0]
+            if os.path.isfile(abs_path) or "/eos/user" in src_vect[0]:
                 if abs_path not in self.files.keys():
-                    self.files[abs_path] = ROOT.TFile.Open(src_vect[0])
+                    self.files[abs_path] = ROOT.TFile.Open(abs_path)
                     ### get primitives objects from all the canvas stored in the file
                     for fkey in self.files[abs_path].GetListOfKeys():
                         fobj = self.files[abs_path].Get(fkey.GetName())
