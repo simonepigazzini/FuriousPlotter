@@ -144,8 +144,9 @@ class FPPlot:
 
         ###---Create legend using the buildin BuildLegend TPad method:
         ###   this is a workaround in order to be able to draw legends in different pads (probably a ROOT bug)        
-        lg = self.pads[pad_key].BuildLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]))
+        lg = self.pads[pad_key].BuildLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]))        
         lg.Clear()
+        lg.SetNColumns(self.cfg.GetOpt(int)(pad_key+".legendColumns") if self.cfg.OptExist(pad_key+".legendColumns") else 1)
         lg.SetHeader(header)
         lg.SetFillStyle(self.cfg.GetOpt(int)(pad_key+".legendStyle") if self.cfg.OptExist(pad_key+".legendStyle") else 0)
 
@@ -223,36 +224,82 @@ class FPPlot:
 
     ###---retrive canvas and save directive-------------------------------
     def getOutput(self):
-        """Returns self.output a dictionary with the canvans and output filenames """
+        """
+        Returns self.output a dictionary with the canvans and output filenames.
+        """
 
         return self.output
+
+    ###---check if output already exist and if source is unchanged--------
+    def getPreviousResult(self, histo_key):
+        """
+        Check if output file exist (.root) and if source has not been updated since 
+        output creation.
+        Return value:
+        - False, None -> previous result is not current.
+        - True, srcs  -> previous result is current, old histogram returned in srcs
+        """
+
+        ### previous result does not exist
+        if not os.path.isfile(expand_path(self.outDir+"/"+self.name+".root")):
+            return (False, None)
+        else:
+            oldresult_time = os.path.getmtime(expand_path(self.outDir+"/"+self.name+".root"))
+            ### check if configuration is different
+            oldfile = ROOT.TFile.Open(expand_path(self.outDir+"/"+self.name+".root"))
+            oldcfg = oldfile.Get("CfgManager")
+            for critical_opt in [".src", ".var", ".cut", ".bins", ".operation"]:
+                if not oldcfg.CompareOption(self.cfg, histo_key+critical_opt):
+                    return (False, None)
+            ### check if sources are more recent than results
+            for src in self.cfg.GetOpt(histo_key+".src"):
+                path = expand_path(src)
+                if os.path.isfile(path) and os.path.getmtime(path) > oldresult_time:
+                    return (False, None)
+                
+            ### old result exists and is current
+            self.files[expand_path(self.outDir+"/"+self.name+".root")] = oldfile
+            oldobj = oldfile.Get(self.name).GetPrimitive(histo_key.replace(".", "_"))
+            return (True, oldobj)
         
     ###---process histos--------------------------------------------------
     def processHistogram(self, histo_key):
-        """Process all the histograms defined in the canvas, steering the histogram creation and drawing"""
+        """
+        Process all the histograms defined in the canvas, steering the histogram creation and drawing
+        If the plot already exist and only style changes are requested (through <customize> and <legendEntry>
+        and <drawOptions> options in the cfg) load previous histogram instead of reprocessing the sources.
+        """
 
-        srcs = self.sourceParser(histo_key)
-        for key in srcs:
-            if srcs[key].ClassName() == "TTree" and self.cfg.OptExist(histo_key+".var"):
-                srcs[key] = self.makeHistogramFromTTree(srcs[key], histo_key)
-            if not any(rtype in srcs[key].ClassName() for rtype in ('Graph', 'TF1')) and not srcs[key].GetSumw2():
-                srcs[key].Sumw2()
-            if not self.cfg.OptExist(histo_key+".operation"):
-                if histo_key not in self.histos.keys():
-                    self.histos[histo_key] = srcs[key].Clone(histo_key.replace(".", "_"))
-                    if "Graph" in self.histos[histo_key].ClassName():
-                        ROOT.gDirectory.Append(self.histos[histo_key])
-                else:
-                    self.histos[histo_key].Add(srcs[key])
-
-        if self.cfg.OptExist(histo_key+".operation"):
-            #---build line to be processed, replacing aliases        
-            operation = self.cfg.GetOpt(std.string)(histo_key+".operation")
-            operation = operation.replace(" ", "")
-            self.histos[histo_key] = self.operationParser(operation, srcs)
-            self.histos[histo_key].SetName(histo_key.replace(".", "_"))
+        ### check if previous result is current
+        prev_result = self.getPreviousResult(histo_key)
+        if prev_result[0]:
+            self.histos[histo_key] = prev_result[1].Clone(histo_key.replace(".", "_"))
             if "Graph" in self.histos[histo_key].ClassName():
                 ROOT.gDirectory.Append(self.histos[histo_key])
+        else:
+            ### process sources
+            srcs = self.sourceParser(histo_key)
+            for key in srcs:
+                if srcs[key].ClassName() == "TTree" and self.cfg.OptExist(histo_key+".var"):
+                    srcs[key] = self.makeHistogramFromTTree(srcs[key], histo_key)
+                if not any(rtype in srcs[key].ClassName() for rtype in ('TTree', 'Graph', 'TF1')) and not srcs[key].GetSumw2():
+                    srcs[key].Sumw2()
+                if not self.cfg.OptExist(histo_key+".operation"):
+                    if histo_key not in self.histos.keys():
+                        self.histos[histo_key] = srcs[key].Clone(histo_key.replace(".", "_"))
+                        if "Graph" in self.histos[histo_key].ClassName():
+                            ROOT.gDirectory.Append(self.histos[histo_key])
+                    else:
+                        self.histos[histo_key].Add(srcs[key])
+
+            if self.cfg.OptExist(histo_key+".operation"):
+                #---build line to be processed, replacing aliases        
+                operation = self.cfg.GetOpt(std.string)(histo_key+".operation")
+                operation = operation.replace(" ", "")
+                self.histos[histo_key] = self.operationParser(operation, srcs)
+                self.histos[histo_key].SetName(histo_key.replace(".", "_"))
+                if "Graph" in self.histos[histo_key].ClassName():
+                    ROOT.gDirectory.Append(self.histos[histo_key])
 
     ###---operations-----------------------------------------------------
     def operationParser(self, operation, srcs):
@@ -264,7 +311,7 @@ class FPPlot:
         #---recursive
         func = operation[:operation.index("(")]
         if func in self.functions:            
-            tokens = re.findall(".*\(.*\)|[\-\w\.]+", operation[operation.index("(")+1:operation.rfind(")")])
+            tokens = re.findall('\"[^,]+\"|.*\(.*\)|[\-\w\.]+', operation[operation.index("(")+1:operation.rfind(")")])
             args = []
             for token in tokens:
                 if "(" in token:
@@ -293,27 +340,24 @@ class FPPlot:
                 src_vect[0] = src_vect[0].replace(alias+":", "")
             else:
                 alias = src_vect[0]
-            ### try to build the file path
-            #   1) skip grid files
-            #   2) then replace ~ with home dir path (if needed)
-            #   3) if root / is not the starting point and current dir to relative path
-            abs_path = src_vect[0]
-            if ":" not in abs_path:
-                if src_vect[0][0] == "~":
-                    abs_path = os.path.expanduser(src_vect[0])
-                elif "/" in src_vect[0] and src_vect[0][0] != "/":
-                    abs_path = os.path.abspath(src_vect[0])
-                elif "/eos/user" in src_vect[0]:
-                    abs_path = 'root://eosuser-internal.cern.ch/'+src_vect[0]
+            ### check if source is a file
+            abs_path = expand_path(src_vect[0])
             if os.path.isfile(abs_path) or "/eos/user" in src_vect[0]:
                 if abs_path not in self.files.keys():
                     self.files[abs_path] = ROOT.TFile.Open(abs_path)
                     ### get primitives objects from all the canvas stored in the file
                     for fkey in self.files[abs_path].GetListOfKeys():
-                        fobj = self.files[abs_path].Get(fkey.GetName())
+                        fobj = self.files[abs_path].Get(fkey.GetName())                        
                         if "TCanvas" in fobj.ClassName():
                             for primitive in fobj.GetListOfPrimitives():
-                                self.basedir.Append(fobj.GetPrimitive(primitive.GetName()))
+                                c_name = primitive.GetName()
+                                if "TFrame" in c_name:
+                                    continue
+                                replica_cnt = 1
+                                while self.basedir.Get(primitive.GetName()+"_"+str(replica_cnt)):
+                                    replica_cnt = replica_cnt + 1
+                                primitive.SetName(primitive.GetName()+"_"+str(replica_cnt))
+                                self.basedir.Append(fobj.GetPrimitive(primitive.GetName()))                                    
                 histo_file = self.files[abs_path]
             # not a file: try to get it from current open file
             elif histo_file and histo_file.Get(src_vect[0]):
