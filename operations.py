@@ -75,7 +75,7 @@ def power(args, srcs):
     return tmp
 
 def eff(args, srcs):
-    """Exploit TGraphAsymErrors to generate a efficiency histogram with the right errors"""
+    """Exploit TGraphAsymmErrors to generate a efficiency histogram with the right errors"""
                             
     tmp = ROOT.TGraphAsymmErrors(srcs[args[0]], srcs[args[1]])
     fake = ROOT.TCanvas()
@@ -224,7 +224,31 @@ def quantile_profiling(args, srcs):
 
     return h_tmp
 
+
+def spectrum_aware_graph(args, srcs):
+    """
+    Set x position of args[0] (graph) points accordingly to args[1] (TH1) average in the same bin  
+    """
+
+    orig_gr = srcs[args[0]]
+    spectrum = srcs[args[1]]
+    
+    px = orig_gr.GetX()
+    py = orig_gr.GetY()
+    ex = orig_gr.GetEX()
+    ey = orig_gr.GetEY()
+
+    tmp = ROOT.TGraphAsymmErrors()
+    for ib in range(0, orig_gr.GetN()):
+        spectrum.GetXaxis().SetRangeUser(px[ib]-ex[ib], px[ib]+ex[ib])
+        mean = spectrum.GetMean()
+        tmp.SetPoint(ib, mean, py[ib])
+        tmp.SetPointError(ib, mean-px[ib]+ex[ib], px[ib]-mean+ex[ib], ey[ib], ey[ib])
+
+    return tmp
+    
 dictionary = dict(Add=add, Sub=sub, Mul=mul, Div=div, Pow=power, Eff=eff, TH2toTH1=th2_to_th1,
                   FitSlicesX=fit_slices_x, FitSlicesY=fit_slices_y,
-                  QuantileBinning=quantile_binning, QuantileProf=quantile_profiling)
+                  QuantileBinning=quantile_binning, QuantileProf=quantile_profiling,
+                  SpectrumAwareGraph=spectrum_aware_graph)
 
