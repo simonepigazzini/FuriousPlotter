@@ -6,6 +6,7 @@ import time
 import random
 import os
 import subprocess
+import copy
 import ROOT
 
 from fp_utils import *
@@ -25,6 +26,7 @@ class FPPlot:
         self.output     = {}
         self.files      = {}        
         self.histos     = odict()
+        self.updated    = {}
         self.pads       = odict()        
         self.functions  = plugin_funcs
         self.outDir     = self.cfg.GetOpt("draw.outDir") if self.cfg.OptExist("draw.outDir") else "plots"
@@ -80,19 +82,20 @@ class FPPlot:
                 pad.cd()
                 if 'goff' not in draw_opt:
                     if len(pad_size) == 4:
-                        self.autoRescale(self.histos[histo_key], x_scale=pad_x_scale, y_scale=pad_y_scale)
+                        self.autoRescale(self.histos[histo_key], self.updated[histo_key], x_scale=pad_x_scale, y_scale=pad_y_scale)
                     self.histos[histo_key].Draw(draw_opt)
                     ### adjust maximum and minimum
                     if not first_histo:
                         first_histo = histo_key
-                    extra_min = self.cfg.GetOpt(float)(self.name+".extraSpaceBelow") if self.cfg.OptExist(self.name+".extraSpaceBelow") else 1.
-                    extra_max = self.cfg.GetOpt(float)(self.name+".extraSpaceAbove") if self.cfg.OptExist(self.name+".extraSpaceAbove") else 1.
-                    if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMaximum() >= self.histos[first_histo].GetMaximum():
-                        self.histos[first_histo].SetAxisRange(self.histos[first_histo].GetMinimum(),
-                                                              self.histos[histo_key].GetMaximum()*1.1*extra_max, "Y")
-                    if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMinimum() <= self.histos[first_histo].GetMinimum():
-                        self.histos[first_histo].SetAxisRange(self.histos[histo_key].GetMinimum()*1.1*extra_min,
-                                                              self.histos[first_histo].GetMaximum(), "Y")
+                    if not self.updated[histo_key]:
+                        extra_min = self.cfg.GetOpt(float)(self.name+".extraSpaceBelow") if self.cfg.OptExist(self.name+".extraSpaceBelow") else 1.
+                        extra_max = self.cfg.GetOpt(float)(self.name+".extraSpaceAbove") if self.cfg.OptExist(self.name+".extraSpaceAbove") else 1.
+                        if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMaximum() >= self.histos[first_histo].GetMaximum():
+                            self.histos[first_histo].SetAxisRange(self.histos[first_histo].GetMinimum(),
+                                                                  self.histos[histo_key].GetMaximum()*1.1*extra_max, "Y")
+                        if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMinimum() <= self.histos[first_histo].GetMinimum():
+                            self.histos[first_histo].SetAxisRange(self.histos[histo_key].GetMinimum()*1.1*extra_min,
+                                                                  self.histos[first_histo].GetMaximum(), "Y")
                         
             #---apply style to pad
             lg = self.buildLegend(pad_key)
@@ -100,7 +103,7 @@ class FPPlot:
             ROOT.gPad.Update()
             self.customize(pad_key, pad)
             if len(pad_size) == 4:
-                self.autoRescale(pad, x_scale=pad_x_scale, y_scale=pad_y_scale)                
+                self.autoRescale(pad, False, x_scale=pad_x_scale, y_scale=pad_y_scale)                
                 
         ###---if option 'saveAs' is specified override global option
         save_opt = self.cfg.GetOpt(vstring)(self.name+".saveAs") if self.cfg.OptExist(self.name+".saveAs") else self.cfg.GetOpt(vstring)("draw.saveAs")
@@ -222,6 +225,10 @@ class FPPlot:
                        'cfg'         : self.cfg.GetSubCfg(self.name)
                        }
 
+        ###---cleanup
+        for path, ofile in self.files.items():
+            ofile.Close()
+
     ###---retrive canvas and save directive-------------------------------
     def getOutput(self):
         """
@@ -241,26 +248,39 @@ class FPPlot:
         """
 
         ### previous result does not exist
-        if not os.path.isfile(expand_path(self.outDir+"/"+self.name+".root")):
-            return (False, None)
+        oldresult_path = expand_path(self.outDir+"/"+self.name+".root")
+        if not os.path.isfile(oldresult_path):
+            return False
         else:
-            oldresult_time = os.path.getmtime(expand_path(self.outDir+"/"+self.name+".root"))
+            oldresult_time = os.path.getmtime(oldresult_path)
             ### check if configuration is different
-            oldfile = ROOT.TFile.Open(expand_path(self.outDir+"/"+self.name+".root"))
+            if oldresult_path not in self.files.keys():
+                oldfile = ROOT.TFile.Open(oldresult_path)
+            else:
+                oldfile = self.files[oldresult_path]
             oldcfg = oldfile.Get("CfgManager")
             for critical_opt in [".src", ".var", ".cut", ".bins", ".operation"]:
                 if not oldcfg.CompareOption(self.cfg, histo_key+critical_opt):
-                    return (False, None)
+                    return False
             ### check if sources are more recent than results
             for src in self.cfg.GetOpt(histo_key+".src"):
                 path = expand_path(src)
                 if os.path.isfile(path) and os.path.getmtime(path) > oldresult_time:
-                    return (False, None)
+                    return False
                 
             ### old result exists and is current
-            self.files[expand_path(self.outDir+"/"+self.name+".root")] = oldfile
-            oldobj = oldfile.Get(self.name).GetPrimitive(histo_key.replace(".", "_"))
-            return (True, oldobj)
+            self.files[oldresult_path] = oldfile
+            fields = histo_key.split(".")
+            primitives = ['_'.join(fields[0:i]) for i in range(1, len(fields)+1)]            
+            pad = oldfile.Get(primitives[0])
+            for primitive in primitives[1:-1]:
+                pad = pad.GetPrimitive(primitive)
+            obj = pad.GetPrimitive(primitives[-1])
+            self.histos[histo_key] = copy.deepcopy(getattr(ROOT, obj.ClassName())(obj))
+            self.histos[histo_key].SetDirectory(self.basedir)
+            self.basedir.Append(self.histos[histo_key])
+            
+            return True
         
     ###---process histos--------------------------------------------------
     def processHistogram(self, histo_key):
@@ -271,12 +291,9 @@ class FPPlot:
         """
 
         ### check if previous result is current
-        prev_result = self.getPreviousResult(histo_key)
-        if prev_result[0]:
-            self.histos[histo_key] = prev_result[1].Clone(histo_key.replace(".", "_"))
-            if "Graph" in self.histos[histo_key].ClassName():
-                ROOT.gDirectory.Append(self.histos[histo_key])
-        else:
+        self.updated[histo_key] = self.getPreviousResult(histo_key)
+        self.basedir.cd()
+        if not self.updated[histo_key]:
             ### process sources
             srcs = self.sourceParser(histo_key)
             for key in srcs:
@@ -345,19 +362,21 @@ class FPPlot:
             if os.path.isfile(abs_path) or "/eos/user" in src_vect[0]:
                 if abs_path not in self.files.keys():
                     self.files[abs_path] = ROOT.TFile.Open(abs_path)
-                    ### get primitives objects from all the canvas stored in the file
-                    for fkey in self.files[abs_path].GetListOfKeys():
-                        fobj = self.files[abs_path].Get(fkey.GetName())                        
-                        if "TCanvas" in fobj.ClassName():
-                            for primitive in fobj.GetListOfPrimitives():
-                                c_name = primitive.GetName()
-                                if "TFrame" in c_name:
-                                    continue
-                                replica_cnt = 1
-                                while self.basedir.Get(primitive.GetName()+"_"+str(replica_cnt)):
-                                    replica_cnt = replica_cnt + 1
-                                primitive.SetName(primitive.GetName()+"_"+str(replica_cnt))
-                                self.basedir.Append(fobj.GetPrimitive(primitive.GetName()))                                    
+                    ### file is a ROOT file
+                    if self.files[abs_path]:
+                        ### get primitives objects from all the canvas stored in the file
+                        for fkey in self.files[abs_path].GetListOfKeys():
+                            fobj = self.files[abs_path].Get(fkey.GetName())                        
+                            if "TCanvas" in fobj.ClassName():
+                                for primitive in fobj.GetListOfPrimitives():
+                                    c_name = primitive.GetName()
+                                    if "TFrame" in c_name:
+                                        continue
+                                    replica_cnt = 1
+                                    while self.basedir.Get(primitive.GetName()+"_"+str(replica_cnt)):
+                                        replica_cnt = replica_cnt + 1
+                                    primitive.SetName(primitive.GetName()+"_"+str(replica_cnt))
+                                    self.basedir.Append(fobj.GetPrimitive(primitive.GetName()))
                 histo_file = self.files[abs_path]
             # not a file: try to get it from current open file
             elif histo_file and histo_file.Get(src_vect[0]):
@@ -480,7 +499,10 @@ class FPPlot:
         if 'name' not in locals():
             name = tmp.GetName() if 'tmp' in locals() else tmp_histo.GetName()
         var = self.cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
-        cut = self.cfg.GetOpt(std.string)(histo_key+".cut") if self.cfg.OptExist(histo_key+".cut") else ""
+        cut = ""
+        if self.cfg.OptExist(histo_key+".cut"):
+            for next_cut in self.cfg.GetOpt(vstring)(histo_key+".cut"):                
+                cut += next_cut
         histo_obj.Draw(var, cut, "goff")
 
         # get histogram if binning was not specified
@@ -511,7 +533,7 @@ class FPPlot:
                 if line[:6] != "macro:":
                     line = "this->"+line if line[:4] != "this" else line
                 else:
-                    line = line[6:]                    
+                    line = line[6:]
                 for key, histo in self.histos.items():
                     if '=' in line:
                         line = line[:line.find('=')]+line[line.find('='):].replace(key, histo.GetName())
@@ -523,19 +545,21 @@ class FPPlot:
                     obj_definition_lines.append(line)
 
                 ROOT.gROOT.ProcessLine(line)
-
+                if obj.ClassName() == "TPad":
+                    obj.Draw()
+                
         for line in obj_definition_lines:
             self.getNewObject(line)
 
     ###---rescale obj in sub-frame-----------------------------------
-    def autoRescale(self, obj, x_scale=1, y_scale=1):
+    def autoRescale(self, obj, is_updated, x_scale=1, y_scale=1):
         """
         Rescale object labels and titles if object is in sub-frame
         """
 
         x_scale = x_scale if x_scale!=0 else 1
         y_scale = y_scale if y_scale!=0 else 1        
-        if "TPad" not in obj.ClassName():
+        if "TPad" not in obj.ClassName() and not is_updated:
             xaxis = obj.GetXaxis()
             xaxis.SetLabelSize(xaxis.GetLabelSize()/(x_scale*y_scale))
             xaxis.SetTitleSize(xaxis.GetTitleSize()/(x_scale*y_scale))
