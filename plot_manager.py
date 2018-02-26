@@ -7,6 +7,7 @@ import random
 import os
 import subprocess
 import copy
+import ctypes
 import ROOT
 
 from fp_utils import *
@@ -227,7 +228,8 @@ class FPPlot:
 
         ###---cleanup
         for path, ofile in self.files.items():
-            ofile.Close()
+            if ofile.ClassName() == "TFile":
+                ofile.Close()
 
     ###---retrive canvas and save directive-------------------------------
     def getOutput(self):
@@ -263,7 +265,7 @@ class FPPlot:
                 if not oldcfg.CompareOption(self.cfg, histo_key+critical_opt):
                     return False
             ### check if sources are more recent than results
-            for src in self.cfg.GetOpt(histo_key+".src"):
+            for src in self.cfg.GetOpt(vstring)(histo_key+".src"):
                 path = expand_path(src)
                 if os.path.isfile(path) and os.path.getmtime(path) > oldresult_time:
                     return False
@@ -377,7 +379,21 @@ class FPPlot:
                                         replica_cnt = replica_cnt + 1
                                     primitive.SetName(primitive.GetName()+"_"+str(replica_cnt))
                                     self.basedir.Append(fobj.GetPrimitive(primitive.GetName()))
-                histo_file = self.files[abs_path]
+                    ### txt file (load data with TTree::ReadFile). TTree is stored both in self.files and srcs
+                    else:
+                        self.files[abs_path] = ROOT.TTree()
+                        ### check if next src is a branch descriptor
+                        branch_desc = ''
+                        #delimiter = ' '
+                        if len(src_vect)>1 and src_vect[1].count(":")>1:
+                            branch_desc = src_vect[1]
+                        self.files[abs_path].ReadFile(abs_path, branch_desc)
+                        srcs[alias] = self.files[abs_path]
+                        src_vect.erase(src_vect.begin()+1)
+                if self.files[abs_path].ClassName() == "TFile":
+                    histo_file = self.files[abs_path]
+                else:
+                    srcs[alias] = self.files[abs_path]
             # not a file: try to get it from current open file
             elif histo_file and histo_file.Get(src_vect[0]):
                 srcs[alias] = histo_file.Get(src_vect[0])
