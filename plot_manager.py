@@ -92,10 +92,12 @@ class FPPlot:
                         extra_min = self.cfg.GetOpt(float)(self.name+".extraSpaceBelow") if self.cfg.OptExist(self.name+".extraSpaceBelow") else 1.
                         extra_max = self.cfg.GetOpt(float)(self.name+".extraSpaceAbove") if self.cfg.OptExist(self.name+".extraSpaceAbove") else 1.
                         if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMaximum() >= self.histos[first_histo].GetMaximum():
+                            extra = 1.1*extra_max if self.histos[histo_key].GetMaximum()>=0 else 0.9*extra_max
                             self.histos[first_histo].SetAxisRange(self.histos[first_histo].GetMinimum(),
-                                                                  self.histos[histo_key].GetMaximum()*1.1*extra_max, "Y")
+                                                                  self.histos[histo_key].GetMaximum()*extra, "Y")
                         if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMinimum() <= self.histos[first_histo].GetMinimum():
-                            self.histos[first_histo].SetAxisRange(self.histos[histo_key].GetMinimum()*1.1*extra_min,
+                            extra = 1.1*extra_min if self.histos[histo_key].GetMinimum()<=0 else 0.9*extra_min
+                            self.histos[first_histo].SetAxisRange(self.histos[histo_key].GetMinimum()*extra,
                                                                   self.histos[first_histo].GetMaximum(), "Y")
                         
             #---apply style to pad
@@ -269,6 +271,8 @@ class FPPlot:
                 path = expand_path(src)
                 if os.path.isfile(path) and os.path.getmtime(path) > oldresult_time:
                     return False
+                elif path[path.find(":")+1:] in self.updated.keys() and self.updated[path[path.find(":")+1:]]:
+                    return False
                 
             ### old result exists and is current
             self.files[oldresult_path] = oldfile
@@ -279,8 +283,9 @@ class FPPlot:
                 pad = pad.GetPrimitive(primitive)
             obj = pad.GetPrimitive(primitives[-1])
             self.histos[histo_key] = copy.deepcopy(getattr(ROOT, obj.ClassName())(obj))
-            self.histos[histo_key].SetDirectory(self.basedir)
             self.basedir.Append(self.histos[histo_key])
+            if "TGraph" not in self.histos[histo_key].ClassName():
+                self.histos[histo_key].SetDirectory(self.basedir)
             
             return True
         
@@ -298,9 +303,10 @@ class FPPlot:
         if not self.updated[histo_key]:
             ### process sources
             srcs = self.sourceParser(histo_key)
+            print(srcs)
             for key in srcs:
                 if srcs[key].ClassName() == "TTree" and self.cfg.OptExist(histo_key+".var"):
-                    srcs[key] = self.makeHistogramFromTTree(srcs[key], histo_key)
+                    srcs[key] = self.makeHistogramFromTTree(srcs[key], histo_key)                    
                 if not any(rtype in srcs[key].ClassName() for rtype in ('TTree', 'Graph', 'TF1')) and not srcs[key].GetSumw2():
                     srcs[key].Sumw2()
                 if not self.cfg.OptExist(histo_key+".operation"):
@@ -372,7 +378,7 @@ class FPPlot:
                             if "TCanvas" in fobj.ClassName():
                                 for primitive in fobj.GetListOfPrimitives():
                                     c_name = primitive.GetName()
-                                    if "TFrame" in c_name:
+                                    if any(rtype in c_name for rtype in ('TFrame', 'TPave')):
                                         continue
                                     replica_cnt = 1
                                     while self.basedir.Get(primitive.GetName()+"_"+str(replica_cnt)):
@@ -390,7 +396,7 @@ class FPPlot:
                         self.files[abs_path].ReadFile(abs_path, branch_desc)
                         srcs[alias] = self.files[abs_path]
                         src_vect.erase(src_vect.begin()+1)
-                if self.files[abs_path].ClassName() == "TFile":
+                if "File" in self.files[abs_path].ClassName():
                     histo_file = self.files[abs_path]
                 else:
                     srcs[alias] = self.files[abs_path]

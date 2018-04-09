@@ -103,7 +103,42 @@ def th2_to_th1(args, srcs):
                 tmp.Fill(origin.GetBinContent(xbin, ybin))
     
     return tmp
-            
+
+def project(args, srcs):
+    """
+    Trivial interface to TH2::ProjectionX and TH2::ProjectionY:
+    - args[0] = input TH2
+    - args[1] = project NOT-specified axis onto specified one
+    - args[2], args[3] (optional) = project including only bins between args[2] and args[3]
+    """
+
+    th2 = srcs[args[0]]
+
+    ### check inputs
+    if len(args) < 2:
+        printMessage("ERROR: Project operation takes at least 2 arguments, "+len(args)+" specified", -1)
+        return
+    if "TH2" not in th2.ClassName():
+        printMessage("ERROR: Project operation requires a TH2 histogram as first parameter, got"+th2.ClassName()+" instead", -1)
+        return
+    if args[1] not in ["X", "Y"]:
+        printMessage("ERROR: Project operation, unsupported axis name: "+args[1], -1)
+        return
+
+    ### set projected axis range
+    if len(args) == 2:
+        args.extend([1, th2.GetNbinsY() if args[1] == "X" else th2.GetNbinsX()])
+    elif len(args) == 3:
+        args.append(th2.GetNbinsY() if args[1] == "X" else th2.GetNbinsX())
+        
+    ### project
+    if args[1] == "X":
+        tmp = th2.ProjectionX("_px", int(args[2]), int(args[3]), "eo")
+    elif args[1] == "Y":
+        tmp = th2.ProjectionY("_py", int(args[2]), int(args[3]), "eo")
+        
+    return tmp
+
 def fit_slices_x(args, srcs):
     """Call the fit slices method of TH2 and returns the requested post-fit histogram"""
 
@@ -224,6 +259,23 @@ def quantile_profiling(args, srcs):
 
     return h_tmp
 
+def th1_to_graph(args, srcs):
+    """
+    Convert TH1 histogram into TGraph
+    """
+
+    th1 = srcs[args[0]]
+    tmp = ROOT.TGraphErrors()
+
+    if "TH1" not in th1.ClassName():
+        printMessage("ERROR: TH1ToGraph, argument 0 is not a TH1 histogram: "+th1.ClassName(), -1)
+        return 
+    
+    for ibin in range(1, th1.GetNbinsX()+1):
+        tmp.SetPoint(ibin-1, th1.GetBinCenter(ibin), th1.GetBinContent(ibin))
+        tmp.SetPointError(ibin-1, th1.GetBinWidth(ibin)/2., th1.GetBinError(ibin))
+
+    return tmp
 
 def spectrum_aware_graph(args, srcs):
     """
@@ -231,13 +283,16 @@ def spectrum_aware_graph(args, srcs):
     """
 
     orig_gr = srcs[args[0]]
-    spectrum = srcs[args[1]]
-    
+    spectrum = srcs[args[1]]  
+
+    if "TH1" in orig_gr.ClassName():
+        orig_gr = th1_to_graph(args[0:1], srcs)
+
     px = orig_gr.GetX()
     py = orig_gr.GetY()
     ex = orig_gr.GetEX()
     ey = orig_gr.GetEY()
-
+        
     tmp = ROOT.TGraphAsymmErrors()
     for ib in range(0, orig_gr.GetN()):
         spectrum.GetXaxis().SetRangeUser(px[ib]-ex[ib], px[ib]+ex[ib])
@@ -247,7 +302,7 @@ def spectrum_aware_graph(args, srcs):
 
     return tmp
     
-dictionary = dict(Add=add, Sub=sub, Mul=mul, Div=div, Pow=power, Eff=eff, TH2toTH1=th2_to_th1,
+dictionary = dict(Add=add, Sub=sub, Mul=mul, Div=div, Pow=power, Eff=eff, TH2toTH1=th2_to_th1, Project=project,
                   FitSlicesX=fit_slices_x, FitSlicesY=fit_slices_y,
                   QuantileBinning=quantile_binning, QuantileProf=quantile_profiling,
                   SpectrumAwareGraph=spectrum_aware_graph)
