@@ -143,7 +143,13 @@ def fit_slices_x(args, srcs):
     """Call the fit slices method of TH2 and returns the requested post-fit histogram"""
 
     parameter = "_0" if len(args)<2 else "_"+args[1]
-    fit_func = 0 if len(args)<3 else srcs[args[2]]
+    fit_func = 0
+    if len(args)==3:
+        if args[2] in srcs.keys():
+            fit_func = srcs[args[2]]
+        else:
+            fit_func = ROOT.TF1("fit_slices_x_func", args[2].replace('"', ''), srcs[args[0]].GetYaxis().GetBinLowEdge(0),
+                                srcs[args[0]].GetXaxis().GetBinUpEdge(srcs[args[0]].GetYaxis().GetLast()))
     srcs[args[0]].FitSlicesX(fit_func)
 
     return ROOT.gDirectory.Get(srcs[args[0]].GetName()+parameter)
@@ -152,7 +158,13 @@ def fit_slices_y(args, srcs):
     """Call the fit slices method of TH2 and returns the requested post-fit histogram"""
 
     parameter = "_0" if len(args)<2 else "_"+args[1]
-    fit_func = 0 if len(args)<3 else srcs[args[2]]
+    fit_func = 0
+    if len(args)==3:
+        if args[2] in srcs.keys():
+            fit_func = srcs[args[2]]
+        else:        
+            fit_func = ROOT.TF1("fit_slices_x_func", args[2].replace('"', ''), srcs[args[0]].GetXaxis().GetBinLowEdge(0),
+                                srcs[args[0]].GetXaxis().GetBinUpEdge(srcs[args[0]].GetXaxis().GetLast()), 4)
     srcs[args[0]].FitSlicesY(fit_func)
 
     return ROOT.gDirectory.Get(srcs[args[0]].GetName()+parameter)
@@ -171,7 +183,7 @@ def quantile_binning(args, srcs):
             nqx = 0
             nqy = int(args[1])
         else:
-            printMessage("WARNING: unsupported axis specified ("+args[1]+")", -1)
+            printMessage("WARNING: unsupported axis specified ("+args[2]+")", -1)
     elif len(args) == 5:
         if args[2] == 'X' and args[4] == 'Y':
             nqx = int(args[1])
@@ -301,9 +313,20 @@ def spectrum_aware_graph(args, srcs):
         tmp.SetPointError(ib, mean-px[ib]+ex[ib], px[ib]-mean+ex[ib], ey[ib], ey[ib])
 
     return tmp
-    
+
+def make_graph_with_errors(args, srcs):
+    """Combine two histograms: the first one set the point value, the second the point error"""
+
+    h_tmp = ROOT.TGraphErrors()
+    for xbin in range(1, srcs[args[0]].GetNbinsX()+1):
+        h_tmp.SetPoint(xbin-1, srcs[args[0]].GetBinCenter(xbin), srcs[args[0]].GetBinContent(xbin))
+        h_tmp.SetPointError(xbin-1, 0, srcs[args[1]].GetBinContent(xbin))
+
+    return h_tmp
+                          
 dictionary = dict(Add=add, Sub=sub, Mul=mul, Div=div, Pow=power, Eff=eff, TH2toTH1=th2_to_th1, Project=project,
                   FitSlicesX=fit_slices_x, FitSlicesY=fit_slices_y,
                   QuantileBinning=quantile_binning, QuantileProf=quantile_profiling,
-                  SpectrumAwareGraph=spectrum_aware_graph)
+                  SpectrumAwareGraph=spectrum_aware_graph,
+                  MakeHistoErrors=make_graph_with_errors)
 

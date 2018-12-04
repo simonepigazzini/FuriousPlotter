@@ -369,9 +369,9 @@ class FPPlot:
             abs_path = expand_path(src_vect[0])
             if os.path.isfile(abs_path) or "/eos/user" in src_vect[0]:
                 if abs_path not in self.files.keys():
-                    self.files[abs_path] = ROOT.TFile.Open(abs_path)
                     ### file is a ROOT file
-                    if self.files[abs_path]:
+                    if ".root" in abs_path:
+                        self.files[abs_path] = ROOT.TFile.Open(abs_path)
                         ### get primitives objects from all the canvas stored in the file
                         for fkey in self.files[abs_path].GetListOfKeys():
                             fobj = self.files[abs_path].Get(fkey.GetName())                        
@@ -502,7 +502,7 @@ class FPPlot:
                     for value in values: 
                         vxbins.append(value)
                     nxbins = values.size()-1
-                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, eval_i(nxbins), vxbins,
+                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, nxbins, vxbins,
                                           eval_i(dbins[1]), eval_f(dbins[2]), eval_f(dbins[3]))
                 elif self.cfg.OptExist(dbins[3]):
                     values = self.cfg.GetOpt(std.vector(float))(dbins[0])
