@@ -102,6 +102,8 @@ class FPPlot:
                         
             #---apply style to pad
             lg = self.buildLegend(pad_key)
+            lg.SetName("lg")
+            self.basedir.Append(lg)
             lg.Draw()
             ROOT.gPad.Update()
             self.customize(pad_key, pad)
@@ -181,7 +183,7 @@ class FPPlot:
             while True:
                 calls = re.findall(r'[\%|\s+]'+key+'->\w+[\([\w|\"|\,|\-|\_]+\)|\(\)]', string)
                 if not calls:
-                    break                
+                    break
                 call = calls[-1].replace('%', '')
                 call.strip()
                 method = call[call.find('->')+2:call.find('(')]
@@ -203,9 +205,9 @@ class FPPlot:
                     value = (match.group(0)[:-1] % float(value))
                     value = re.sub('E(.*)', r'#scale[0.75]{#times}10^{\1}', value).replace('+','')
                     value = re.sub('{0+(.*)}', r'{\1}', value)
-                    string = re.sub('\%\.[0-9]+[Ef]\%'+key+'->\w+[\([\w|\"|\,|\-|\_]+\)|\(\)]', value, string, 1)
+                    string = re.sub('\%\.[0-9]+[Ef]\%'+key+'->'+method+'[\([\w|\"|\,|\-|\_]+\)|\(\)]', value, string, 1)
                 else:
-                    string = re.sub('[\%|\s+]'+key+'->\w+[\([\w|\"|\,|\-|\_]+\)|\(\)]', value, string, 1)
+                    string = re.sub('[\%|\s+]'+key+'->'+method+'[\([\w|\"|\,|\-|\_]+\)|\(\)]', value, string, 1)
 
         return string
     
@@ -336,16 +338,35 @@ class FPPlot:
         #---recursive
         func = operation[:operation.index("(")]
         if func in self.functions:            
-            tokens = re.findall('\"[^,]+\"|.*\(.*\)|[\-\w\.]+', operation[operation.index("(")+1:operation.rfind(")")])
-            args = []
-            for token in tokens:
-                if "(" in token:
-                    ret = self.operationParser(token, srcs)
-                    args.append(ret.GetName())
-                    srcs[ret.GetName()] = ret
-                elif token != "":
-                    args.append(token)
-            return self.functions[func](args, srcs) 
+            if '=' not in operation[operation.index("(")+1:operation.rfind(")")]:
+                tokens = re.findall('\"[^,]+\"|.*\(.*\)|[\m-\w\.]+', operation[operation.index("(")+1:operation.rfind(")")])
+                args = []
+                for token in tokens:
+                    if "(" in token:
+                        ret = self.operationParser(token, srcs)
+                        args.append(ret.GetName())
+                        srcs[ret.GetName()] = ret
+                    elif token != "":
+                        args.append(token)
+                return self.functions[func](args, srcs)
+            else:
+                args = operation[operation.index("(")+1:operation.rfind(")")]
+                kwargs = {}
+                while len(args) > 0:
+                    pnts = [m.start()+1 for m in re.finditer('[^=]=[^=]', args)]
+                    if len(pnts) > 1:
+                        pnts = [pnts[0], args.rfind(',', pnts[0], pnts[1])]
+                    else:
+                        pnts.append(len(args))
+                    key = args[:pnts[0]]
+                    value = args[pnts[0]+1:pnts[1]]
+                    kwargs[key] = value
+                    if value[0] == '(' and value[-1] == ')':
+                        ret = self.operationParser(value, srcs)
+                        kwargs[key] = ret.GetName()
+                        srcs[ret.GetName()] = ret
+                    args = args[pnts[1]+1:] if pnts[1] != len(args) else ''
+                return self.functions[func](srcs, **kwargs)
         
     ###---get sources----------------------------------------------------
     def sourceParser(self, histo_key):
