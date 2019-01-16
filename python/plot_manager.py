@@ -5,7 +5,6 @@ import re
 import time
 import random
 import os
-import subprocess
 import copy
 import ctypes
 import ROOT
@@ -31,7 +30,8 @@ class FPPlot:
         self.pads       = odict()        
         self.functions  = plugin_funcs
         self.outDir     = self.cfg.GetOpt("draw.outDir") if self.cfg.OptExist("draw.outDir") else "plots"
-        subprocess.getoutput("mkdir -p "+self.outDir)
+        if not os.path.isdir(self.outDir):
+            os.makedirs(self.outDir)
         
         ###---main loop
         self.processPads()

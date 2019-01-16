@@ -107,3 +107,17 @@ def eval_f(expr):
     """
 
     return float(eval(expr))
+
+###---expand source path
+def expand_path(path):
+    """
+    Expand relative and EOS path
+    """
+
+    if ":" not in path:
+        if path[0] == "~":
+            path = os.path.expanduser(path)
+        elif "/" in path and path[0] != "/":
+            path = os.path.abspath(path)
+
+    return path
