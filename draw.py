@@ -7,6 +7,7 @@ import argparse
 import os
 import copy
 import subprocess
+import importlib
 import ROOT
 #---Prevent TApplication from showing its useless help message...
 ROOT.PyConfig.IgnoreCommandLineOptions = True
@@ -63,7 +64,7 @@ if __name__ == "__main__":
                 plugins["line"].append(plugin)
     processLines(plugins["line"])
     for plugin in plugins["py"]:
-        plugin_module = __import__(plugin)        
+        plugin_module = importlib.import_module(plugin)
         for key, func in getattr(plugin_module, 'dictionary').items():
             plugin_funcs[key] = func
     for macro in plugins["C"]:
