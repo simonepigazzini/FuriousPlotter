@@ -14,7 +14,7 @@ from array import array
 def add(args, srcs):
     name = "add_"+"_".join(args)
     tmp = srcs[args[0]].Clone(name)
-    
+    tmp.Sumw2()
     tmp.UseCurrentStyle()
     args.pop(0)
     for arg in args:
@@ -24,7 +24,7 @@ def add(args, srcs):
 def sub(args, srcs):
     name = "sub_"+"_".join(args)
     tmp = srcs[args[0]].Clone(name)
-    
+    tmp.Sumw2()
     tmp.UseCurrentStyle()
     args.pop(0)
     for arg in args:
@@ -34,7 +34,7 @@ def sub(args, srcs):
 def mul(args, srcs):
     name = "mul_"+"_".join(args)
     tmp = srcs[args[0]].Clone(name)
-    
+    tmp.Sumw2()
     tmp.UseCurrentStyle()
     args.pop(0)
     for arg in args:
@@ -44,7 +44,7 @@ def mul(args, srcs):
 def div(args, srcs):
     name = "div_"+"_".join(args)
     tmp = srcs[args[0]].Clone(name)
-    
+    tmp.Sumw2()
     tmp.UseCurrentStyle()
     args.pop(0)
     for arg in args:
@@ -55,7 +55,7 @@ def power(args, srcs):
     """Compute power of bins content for TH1 and TH2 histogram, syntax: Pow(histogram, power)"""
     name = "pow_"+"_".join(args)
     tmp = srcs[args[0]].Clone(name)
-    
+    tmp.Sumw2()
     tmp.UseCurrentStyle()
     power = float(args[1])
     if '2' in tmp.ClassName():
@@ -75,7 +75,7 @@ def power(args, srcs):
     return tmp
 
 def eff(args, srcs):
-    """Exploit TGraphAsymErrors to generate a efficiency histogram with the right errors"""
+    """Exploit TGraphAsymmErrors to generate a efficiency histogram with the right errors"""
                             
     tmp = ROOT.TGraphAsymmErrors(srcs[args[0]], srcs[args[1]])
     fake = ROOT.TCanvas()
@@ -103,12 +103,53 @@ def th2_to_th1(args, srcs):
                 tmp.Fill(origin.GetBinContent(xbin, ybin))
     
     return tmp
-            
+
+def project(args, srcs):
+    """
+    Trivial interface to TH2::ProjectionX and TH2::ProjectionY:
+    - args[0] = input TH2
+    - args[1] = project NOT-specified axis onto specified one
+    - args[2], args[3] (optional) = project including only bins between args[2] and args[3]
+    """
+
+    th2 = srcs[args[0]]
+
+    ### check inputs
+    if len(args) < 2:
+        printMessage("ERROR: Project operation takes at least 2 arguments, "+len(args)+" specified", -1)
+        return
+    if "TH2" not in th2.ClassName():
+        printMessage("ERROR: Project operation requires a TH2 histogram as first parameter, got"+th2.ClassName()+" instead", -1)
+        return
+    if args[1] not in ["X", "Y"]:
+        printMessage("ERROR: Project operation, unsupported axis name: "+args[1], -1)
+        return
+
+    ### set projected axis range
+    if len(args) == 2:
+        args.extend([1, th2.GetNbinsY() if args[1] == "X" else th2.GetNbinsX()])
+    elif len(args) == 3:
+        args.append(th2.GetNbinsY() if args[1] == "X" else th2.GetNbinsX())
+        
+    ### project
+    if args[1] == "X":
+        tmp = th2.ProjectionX("_px", int(args[2]), int(args[3]), "eo")
+    elif args[1] == "Y":
+        tmp = th2.ProjectionY("_py", int(args[2]), int(args[3]), "eo")
+        
+    return tmp
+
 def fit_slices_x(args, srcs):
     """Call the fit slices method of TH2 and returns the requested post-fit histogram"""
 
     parameter = "_0" if len(args)<2 else "_"+args[1]
-    fit_func = 0 if len(args)<3 else srcs[args[2]]
+    fit_func = 0
+    if len(args)==3:
+        if args[2] in srcs.keys():
+            fit_func = srcs[args[2]]
+        else:
+            fit_func = ROOT.TF1("fit_slices_x_func", args[2].replace('"', ''), srcs[args[0]].GetYaxis().GetBinLowEdge(0),
+                                srcs[args[0]].GetXaxis().GetBinUpEdge(srcs[args[0]].GetYaxis().GetLast()))
     srcs[args[0]].FitSlicesX(fit_func)
 
     return ROOT.gDirectory.Get(srcs[args[0]].GetName()+parameter)
@@ -117,7 +158,13 @@ def fit_slices_y(args, srcs):
     """Call the fit slices method of TH2 and returns the requested post-fit histogram"""
 
     parameter = "_0" if len(args)<2 else "_"+args[1]
-    fit_func = 0 if len(args)<3 else srcs[args[2]]
+    fit_func = 0
+    if len(args)==3:
+        if args[2] in srcs.keys():
+            fit_func = srcs[args[2]]
+        else:        
+            fit_func = ROOT.TF1("fit_slices_x_func", args[2].replace('"', ''), srcs[args[0]].GetXaxis().GetBinLowEdge(0),
+                                srcs[args[0]].GetXaxis().GetBinUpEdge(srcs[args[0]].GetXaxis().GetLast()), 4)
     srcs[args[0]].FitSlicesY(fit_func)
 
     return ROOT.gDirectory.Get(srcs[args[0]].GetName()+parameter)
@@ -136,7 +183,7 @@ def quantile_binning(args, srcs):
             nqx = 0
             nqy = int(args[1])
         else:
-            printMessage("WARNING: unsupported axis specified ("+args[1]+")", -1)
+            printMessage("WARNING: unsupported axis specified ("+args[2]+")", -1)
     elif len(args) == 5:
         if args[2] == 'X' and args[4] == 'Y':
             nqx = int(args[1])
@@ -224,7 +271,62 @@ def quantile_profiling(args, srcs):
 
     return h_tmp
 
-dictionary = dict(Add=add, Sub=sub, Mul=mul, Div=div, Pow=power, Eff=eff, TH2toTH1=th2_to_th1,
+def th1_to_graph(args, srcs):
+    """
+    Convert TH1 histogram into TGraph
+    """
+
+    th1 = srcs[args[0]]
+    tmp = ROOT.TGraphErrors()
+
+    if "TH1" not in th1.ClassName():
+        printMessage("ERROR: TH1ToGraph, argument 0 is not a TH1 histogram: "+th1.ClassName(), -1)
+        return 
+    
+    for ibin in range(1, th1.GetNbinsX()+1):
+        tmp.SetPoint(ibin-1, th1.GetBinCenter(ibin), th1.GetBinContent(ibin))
+        tmp.SetPointError(ibin-1, th1.GetBinWidth(ibin)/2., th1.GetBinError(ibin))
+
+    return tmp
+
+def spectrum_aware_graph(args, srcs):
+    """
+    Set x position of args[0] (graph) points accordingly to args[1] (TH1) average in the same bin  
+    """
+
+    orig_gr = srcs[args[0]]
+    spectrum = srcs[args[1]]  
+
+    if "TH1" in orig_gr.ClassName():
+        orig_gr = th1_to_graph(args[0:1], srcs)
+
+    px = orig_gr.GetX()
+    py = orig_gr.GetY()
+    ex = orig_gr.GetEX()
+    ey = orig_gr.GetEY()
+        
+    tmp = ROOT.TGraphAsymmErrors()
+    for ib in range(0, orig_gr.GetN()):
+        spectrum.GetXaxis().SetRangeUser(px[ib]-ex[ib], px[ib]+ex[ib])
+        mean = spectrum.GetMean()
+        tmp.SetPoint(ib, mean, py[ib])
+        tmp.SetPointError(ib, mean-px[ib]+ex[ib], px[ib]-mean+ex[ib], ey[ib], ey[ib])
+
+    return tmp
+
+def make_graph_with_errors(args, srcs):
+    """Combine two histograms: the first one set the point value, the second the point error"""
+
+    h_tmp = ROOT.TGraphErrors()
+    for xbin in range(1, srcs[args[0]].GetNbinsX()+1):
+        h_tmp.SetPoint(xbin-1, srcs[args[0]].GetBinCenter(xbin), srcs[args[0]].GetBinContent(xbin))
+        h_tmp.SetPointError(xbin-1, 0, srcs[args[1]].GetBinContent(xbin))
+
+    return h_tmp
+                          
+dictionary = dict(Add=add, Sub=sub, Mul=mul, Div=div, Pow=power, Eff=eff, TH2toTH1=th2_to_th1, Project=project,
                   FitSlicesX=fit_slices_x, FitSlicesY=fit_slices_y,
-                  QuantileBinning=quantile_binning, QuantileProf=quantile_profiling)
+                  QuantileBinning=quantile_binning, QuantileProf=quantile_profiling,
+                  SpectrumAwareGraph=spectrum_aware_graph,
+                  MakeHistoErrors=make_graph_with_errors)
 

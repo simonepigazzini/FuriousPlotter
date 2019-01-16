@@ -6,6 +6,8 @@ import time
 import random
 import os
 import subprocess
+import copy
+import ctypes
 import ROOT
 
 from fp_utils import *
@@ -25,10 +27,11 @@ class FPPlot:
         self.output     = {}
         self.files      = {}        
         self.histos     = odict()
+        self.updated    = {}
         self.pads       = odict()        
         self.functions  = plugin_funcs
         self.outDir     = self.cfg.GetOpt("draw.outDir") if self.cfg.OptExist("draw.outDir") else "plots"
-        subprocess.call(["mkdir", "-p", self.outDir])
+        subprocess.getoutput("mkdir -p "+self.outDir)
         
         ###---main loop
         self.processPads()
@@ -80,27 +83,32 @@ class FPPlot:
                 pad.cd()
                 if 'goff' not in draw_opt:
                     if len(pad_size) == 4:
-                        self.autoRescale(self.histos[histo_key], x_scale=pad_x_scale, y_scale=pad_y_scale)
+                        self.autoRescale(self.histos[histo_key], self.updated[histo_key], x_scale=pad_x_scale, y_scale=pad_y_scale)
                     self.histos[histo_key].Draw(draw_opt)
                     ### adjust maximum and minimum
                     if not first_histo:
                         first_histo = histo_key
-                    extra_min = self.cfg.GetOpt(float)(self.name+".extraSpaceBelow") if self.cfg.OptExist(self.name+".extraSpaceBelow") else 1.
-                    extra_max = self.cfg.GetOpt(float)(self.name+".extraSpaceAbove") if self.cfg.OptExist(self.name+".extraSpaceAbove") else 1.
-                    if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMaximum() >= self.histos[first_histo].GetMaximum():
-                        self.histos[first_histo].SetAxisRange(self.histos[first_histo].GetMinimum(),
-                                                              self.histos[histo_key].GetMaximum()*1.1*extra_max, "Y")
-                    if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMinimum() <= self.histos[first_histo].GetMinimum():
-                        self.histos[first_histo].SetAxisRange(self.histos[histo_key].GetMinimum()*1.1*extra_min,
-                                                              self.histos[first_histo].GetMaximum(), "Y")
+                    if not self.updated[histo_key]:
+                        extra_min = self.cfg.GetOpt(float)(self.name+".extraSpaceBelow") if self.cfg.OptExist(self.name+".extraSpaceBelow") else 1.
+                        extra_max = self.cfg.GetOpt(float)(self.name+".extraSpaceAbove") if self.cfg.OptExist(self.name+".extraSpaceAbove") else 1.
+                        if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMaximum() >= self.histos[first_histo].GetMaximum():
+                            extra = 1.1*extra_max if self.histos[histo_key].GetMaximum()>=0 else 0.9*extra_max
+                            self.histos[first_histo].SetAxisRange(self.histos[first_histo].GetMinimum(),
+                                                                  self.histos[histo_key].GetMaximum()*extra, "Y")
+                        if "TH1" in self.histos[histo_key].ClassName() and "TH1" in self.histos[first_histo].ClassName() and self.histos[histo_key].GetMinimum() <= self.histos[first_histo].GetMinimum():
+                            extra = 1.1*extra_min if self.histos[histo_key].GetMinimum()<=0 else 0.9*extra_min
+                            self.histos[first_histo].SetAxisRange(self.histos[histo_key].GetMinimum()*extra,
+                                                                  self.histos[first_histo].GetMaximum(), "Y")
                         
             #---apply style to pad
             lg = self.buildLegend(pad_key)
+            lg.SetName("lg")
+            self.basedir.Append(lg)
             lg.Draw()
             ROOT.gPad.Update()
             self.customize(pad_key, pad)
             if len(pad_size) == 4:
-                self.autoRescale(pad, x_scale=pad_x_scale, y_scale=pad_y_scale)                
+                self.autoRescale(pad, False, x_scale=pad_x_scale, y_scale=pad_y_scale)                
                 
         ###---if option 'saveAs' is specified override global option
         save_opt = self.cfg.GetOpt(vstring)(self.name+".saveAs") if self.cfg.OptExist(self.name+".saveAs") else self.cfg.GetOpt(vstring)("draw.saveAs")
@@ -144,8 +152,9 @@ class FPPlot:
 
         ###---Create legend using the buildin BuildLegend TPad method:
         ###   this is a workaround in order to be able to draw legends in different pads (probably a ROOT bug)        
-        lg = self.pads[pad_key].BuildLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]))
+        lg = self.pads[pad_key].BuildLegend(float(pos[0]), float(pos[1]), float(pos[2]), float(pos[3]))        
         lg.Clear()
+        lg.SetNColumns(self.cfg.GetOpt(int)(pad_key+".legendColumns") if self.cfg.OptExist(pad_key+".legendColumns") else 1)
         lg.SetHeader(header)
         lg.SetFillStyle(self.cfg.GetOpt(int)(pad_key+".legendStyle") if self.cfg.OptExist(pad_key+".legendStyle") else 0)
 
@@ -174,7 +183,7 @@ class FPPlot:
             while True:
                 calls = re.findall(r'[\%|\s+]'+key+'->\w+[\([\w|\"|\,|\-|\_]+\)|\(\)]', string)
                 if not calls:
-                    break                
+                    break
                 call = calls[-1].replace('%', '')
                 call.strip()
                 method = call[call.find('->')+2:call.find('(')]
@@ -196,9 +205,9 @@ class FPPlot:
                     value = (match.group(0)[:-1] % float(value))
                     value = re.sub('E(.*)', r'#scale[0.75]{#times}10^{\1}', value).replace('+','')
                     value = re.sub('{0+(.*)}', r'{\1}', value)
-                    string = re.sub('\%\.[0-9]+[Ef]\%'+key+'->\w+[\([\w|\"|\,|\-|\_]+\)|\(\)]', value, string, 1)
+                    string = re.sub('\%\.[0-9]+[Ef]\%'+key+'->'+method+'[\([\w|\"|\,|\-|\_]+\)|\(\)]', value, string, 1)
                 else:
-                    string = re.sub('[\%|\s+]'+key+'->\w+[\([\w|\"|\,|\-|\_]+\)|\(\)]', value, string, 1)
+                    string = re.sub('[\%|\s+]'+key+'->'+method+'[\([\w|\"|\,|\-|\_]+\)|\(\)]', value, string, 1)
 
         return string
     
@@ -221,38 +230,103 @@ class FPPlot:
                        'cfg'         : self.cfg.GetSubCfg(self.name)
                        }
 
+        ###---cleanup
+        for path, ofile in self.files.items():
+            if ofile.ClassName() == "TFile":
+                ofile.Close()
+
     ###---retrive canvas and save directive-------------------------------
     def getOutput(self):
-        """Returns self.output a dictionary with the canvans and output filenames """
+        """
+        Returns self.output a dictionary with the canvans and output filenames.
+        """
 
         return self.output
+
+    ###---check if output already exist and if source is unchanged--------
+    def getPreviousResult(self, histo_key):
+        """
+        Check if output file exist (.root) and if source has not been updated since 
+        output creation.
+        Return value:
+        - False, None -> previous result is not current.
+        - True, srcs  -> previous result is current, old histogram returned in srcs
+        """
+
+        ### previous result does not exist
+        oldresult_path = expand_path(self.outDir+"/"+self.name+".root")
+        if not os.path.isfile(oldresult_path):
+            return False
+        else:
+            oldresult_time = os.path.getmtime(oldresult_path)
+            ### check if configuration is different
+            if oldresult_path not in self.files.keys():
+                oldfile = ROOT.TFile.Open(oldresult_path)
+            else:
+                oldfile = self.files[oldresult_path]
+            oldcfg = oldfile.Get("CfgManager")
+            for critical_opt in [".src", ".var", ".cut", ".bins", ".operation"]:
+                if not oldcfg.CompareOption(self.cfg, histo_key+critical_opt):
+                    return False
+            ### check if sources are more recent than results
+            for src in self.cfg.GetOpt(vstring)(histo_key+".src"):
+                path = expand_path(src)
+                if os.path.isfile(path) and os.path.getmtime(path) > oldresult_time:
+                    return False
+                elif path[path.find(":")+1:] in self.updated.keys() and self.updated[path[path.find(":")+1:]]:
+                    return False
+                
+            ### old result exists and is current
+            self.files[oldresult_path] = oldfile
+            fields = histo_key.split(".")
+            primitives = ['_'.join(fields[0:i]) for i in range(1, len(fields)+1)]            
+            pad = oldfile.Get(primitives[0])
+            for primitive in primitives[1:-1]:
+                pad = pad.GetPrimitive(primitive)
+            obj = pad.GetPrimitive(primitives[-1])
+            self.histos[histo_key] = copy.deepcopy(getattr(ROOT, obj.ClassName())(obj))
+            self.basedir.Append(self.histos[histo_key])
+            if "TGraph" not in self.histos[histo_key].ClassName():
+                self.histos[histo_key].SetDirectory(self.basedir)
+            
+            return True
         
     ###---process histos--------------------------------------------------
     def processHistogram(self, histo_key):
-        """Process all the histograms defined in the canvas, steering the histogram creation and drawing"""
+        """
+        Process all the histograms defined in the canvas, steering the histogram creation and drawing
+        If the plot already exist and only style changes are requested (through <customize> and <legendEntry>
+        and <drawOptions> options in the cfg) load previous histogram instead of reprocessing the sources.
+        """
 
-        srcs = self.sourceParser(histo_key)
-        for key in srcs:
-            if srcs[key].ClassName() == "TTree" and self.cfg.OptExist(histo_key+".var"):
-                srcs[key] = self.makeHistogramFromTTree(srcs[key], histo_key)
-            if not any(rtype in srcs[key].ClassName() for rtype in ('Graph', 'TF1')) and not srcs[key].GetSumw2():
-                srcs[key].Sumw2()
-            if not self.cfg.OptExist(histo_key+".operation"):
-                if histo_key not in self.histos.keys():
-                    self.histos[histo_key] = srcs[key].Clone(histo_key.replace(".", "_"))
-                    if "Graph" in self.histos[histo_key].ClassName():
-                        ROOT.gDirectory.Append(self.histos[histo_key])
-                else:
-                    self.histos[histo_key].Add(srcs[key])
+        ### check if previous result is current
+        self.updated[histo_key] = self.getPreviousResult(histo_key)
+        self.basedir.cd()
+        if not self.updated[histo_key]:
+            ### process sources
+            srcs = self.sourceParser(histo_key)
+            print(srcs)
+            for key in srcs:
+                if srcs[key].ClassName() == "TTree" and self.cfg.OptExist(histo_key+".var"):
+                    srcs[key] = self.makeHistogramFromTTree(srcs[key], histo_key)                    
+                if not any(rtype in srcs[key].ClassName() for rtype in ('TTree', 'Graph', 'TF1')) and not srcs[key].GetSumw2():
+                    srcs[key].Sumw2()
+                if not self.cfg.OptExist(histo_key+".operation"):
+                    if histo_key not in self.histos.keys():
+                        self.histos[histo_key] = srcs[key].Clone(histo_key.replace(".", "_"))
+                        if "Graph" in self.histos[histo_key].ClassName():
+                            ROOT.gDirectory.Append(self.histos[histo_key])
+                    else:
+                        self.histos[histo_key].Add(srcs[key])
 
-        if self.cfg.OptExist(histo_key+".operation"):
-            #---build line to be processed, replacing aliases        
-            operation = self.cfg.GetOpt(std.string)(histo_key+".operation")
-            operation = operation.replace(" ", "")
-            self.histos[histo_key] = self.operationParser(operation, srcs)
-            self.histos[histo_key].SetName(histo_key.replace(".", "_"))
-            if "Graph" in self.histos[histo_key].ClassName():
-                ROOT.gDirectory.Append(self.histos[histo_key])
+            if self.cfg.OptExist(histo_key+".operation"):
+                #---build line to be processed, replacing aliases        
+                operation = self.cfg.GetOpt(std.string)(histo_key+".operation")
+                operation = operation.replace(" ", "")
+                self.histos[histo_key] = self.operationParser(operation, srcs)
+                self.histos[histo_key].SetName(histo_key.replace(".", "_"))
+                if "Graph" in self.histos[histo_key].ClassName():
+                    ROOT.gDirectory.Append(self.histos[histo_key])
 
     ###---operations-----------------------------------------------------
     def operationParser(self, operation, srcs):
@@ -264,16 +338,35 @@ class FPPlot:
         #---recursive
         func = operation[:operation.index("(")]
         if func in self.functions:            
-            tokens = re.findall(".*\(.*\)|[\-\w\.]+", operation[operation.index("(")+1:operation.rfind(")")])
-            args = []
-            for token in tokens:
-                if "(" in token:
-                    ret = self.operationParser(token, srcs)
-                    args.append(ret.GetName())
-                    srcs[ret.GetName()] = ret
-                elif token != "":
-                    args.append(token)
-            return self.functions[func](args, srcs) 
+            if '=' not in operation[operation.index("(")+1:operation.rfind(")")]:
+                tokens = re.findall('\"[^,]+\"|.*\(.*\)|[\m-\w\.]+', operation[operation.index("(")+1:operation.rfind(")")])
+                args = []
+                for token in tokens:
+                    if "(" in token:
+                        ret = self.operationParser(token, srcs)
+                        args.append(ret.GetName())
+                        srcs[ret.GetName()] = ret
+                    elif token != "":
+                        args.append(token)
+                return self.functions[func](args, srcs)
+            else:
+                args = operation[operation.index("(")+1:operation.rfind(")")]
+                kwargs = {}
+                while len(args) > 0:
+                    pnts = [m.start()+1 for m in re.finditer('[^=]=[^=]', args)]
+                    if len(pnts) > 1:
+                        pnts = [pnts[0], args.rfind(',', pnts[0], pnts[1])]
+                    else:
+                        pnts.append(len(args))
+                    key = args[:pnts[0]]
+                    value = args[pnts[0]+1:pnts[1]]
+                    kwargs[key] = value
+                    if value[0] == '(' and value[-1] == ')':
+                        ret = self.operationParser(value, srcs)
+                        kwargs[key] = ret.GetName()
+                        srcs[ret.GetName()] = ret
+                    args = args[pnts[1]+1:] if pnts[1] != len(args) else ''
+                return self.functions[func](srcs, **kwargs)
         
     ###---get sources----------------------------------------------------
     def sourceParser(self, histo_key):
@@ -293,26 +386,41 @@ class FPPlot:
                 src_vect[0] = src_vect[0].replace(alias+":", "")
             else:
                 alias = src_vect[0]
-            ### try to build the file path
-            #   1) skip grid files
-            #   2) then replace ~ with home dir path (if needed)
-            #   3) if root / is not the starting point and current dir to relative path
-            abs_path = src_vect[0]
-            if ":" not in abs_path:
-                if src_vect[0][0] == "~":
-                    abs_path = os.path.expanduser(src_vect[0])
-                elif "/" in src_vect[0] and src_vect[0][0] != "/":
-                    abs_path = os.path.abspath(src_vect[0])
-            if os.path.isfile(abs_path):
+            ### check if source is a file
+            abs_path = expand_path(src_vect[0])
+            if os.path.isfile(abs_path) or "/eos/user" in src_vect[0]:
                 if abs_path not in self.files.keys():
-                    self.files[abs_path] = ROOT.TFile.Open(src_vect[0])
-                    ### get primitives objects from all the canvas stored in the file
-                    for fkey in self.files[abs_path].GetListOfKeys():
-                        fobj = self.files[abs_path].Get(fkey.GetName())
-                        if "TCanvas" in fobj.ClassName():
-                            for primitive in fobj.GetListOfPrimitives():
-                                self.basedir.Append(fobj.GetPrimitive(primitive.GetName()))
-                histo_file = self.files[abs_path]
+                    ### file is a ROOT file
+                    if ".root" in abs_path:
+                        self.files[abs_path] = ROOT.TFile.Open(abs_path)
+                        ### get primitives objects from all the canvas stored in the file
+                        for fkey in self.files[abs_path].GetListOfKeys():
+                            fobj = self.files[abs_path].Get(fkey.GetName())                        
+                            if "TCanvas" in fobj.ClassName():
+                                for primitive in fobj.GetListOfPrimitives():
+                                    c_name = primitive.GetName()
+                                    if any(rtype in c_name for rtype in ('TFrame', 'TPave')):
+                                        continue
+                                    replica_cnt = 1
+                                    while self.basedir.Get(primitive.GetName()+"_"+str(replica_cnt)):
+                                        replica_cnt = replica_cnt + 1
+                                    primitive.SetName(primitive.GetName()+"_"+str(replica_cnt))
+                                    self.basedir.Append(fobj.GetPrimitive(primitive.GetName()))
+                    ### txt file (load data with TTree::ReadFile). TTree is stored both in self.files and srcs
+                    else:
+                        self.files[abs_path] = ROOT.TTree()
+                        ### check if next src is a branch descriptor
+                        branch_desc = ''
+                        #delimiter = ' '
+                        if len(src_vect)>1 and src_vect[1].count(":")>1:
+                            branch_desc = src_vect[1]
+                        self.files[abs_path].ReadFile(abs_path, branch_desc)
+                        srcs[alias] = self.files[abs_path]
+                        src_vect.erase(src_vect.begin()+1)
+                if "File" in self.files[abs_path].ClassName():
+                    histo_file = self.files[abs_path]
+                else:
+                    srcs[alias] = self.files[abs_path]
             # not a file: try to get it from current open file
             elif histo_file and histo_file.Get(src_vect[0]):
                 srcs[alias] = histo_file.Get(src_vect[0])
@@ -415,7 +523,7 @@ class FPPlot:
                     for value in values: 
                         vxbins.append(value)
                     nxbins = values.size()-1
-                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, eval_i(nxbins), vxbins,
+                    tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, nxbins, vxbins,
                                           eval_i(dbins[1]), eval_f(dbins[2]), eval_f(dbins[3]))
                 elif self.cfg.OptExist(dbins[3]):
                     values = self.cfg.GetOpt(std.vector(float))(dbins[0])
@@ -436,8 +544,8 @@ class FPPlot:
         var = self.cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
         cut = ""
         if self.cfg.OptExist(histo_key+".cut"):
-            for next_cut in self.cfg.GetOpt(std.string)(histo_key+".cut"):
-                cut += next_cut+" "
+            for next_cut in self.cfg.GetOpt(vstring)(histo_key+".cut"):                
+                cut += next_cut
         histo_obj.Draw(var, cut, "goff")
 
         # get histogram if binning was not specified
@@ -468,7 +576,7 @@ class FPPlot:
                 if line[:6] != "macro:":
                     line = "this->"+line if line[:4] != "this" else line
                 else:
-                    line = line[6:]                    
+                    line = line[6:]
                 for key, histo in self.histos.items():
                     if '=' in line:
                         line = line[:line.find('=')]+line[line.find('='):].replace(key, histo.GetName())
@@ -480,19 +588,21 @@ class FPPlot:
                     obj_definition_lines.append(line)
 
                 ROOT.gROOT.ProcessLine(line)
-
+                if obj.ClassName() == "TPad":
+                    obj.Draw()
+                
         for line in obj_definition_lines:
             self.getNewObject(line)
 
     ###---rescale obj in sub-frame-----------------------------------
-    def autoRescale(self, obj, x_scale=1, y_scale=1):
+    def autoRescale(self, obj, is_updated, x_scale=1, y_scale=1):
         """
         Rescale object labels and titles if object is in sub-frame
         """
 
         x_scale = x_scale if x_scale!=0 else 1
         y_scale = y_scale if y_scale!=0 else 1        
-        if "TPad" not in obj.ClassName():
+        if "TPad" not in obj.ClassName() and not is_updated:
             xaxis = obj.GetXaxis()
             xaxis.SetLabelSize(xaxis.GetLabelSize()/(x_scale*y_scale))
             xaxis.SetTitleSize(xaxis.GetTitleSize()/(x_scale*y_scale))
