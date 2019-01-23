@@ -339,7 +339,7 @@ class FPPlot:
         func = operation[:operation.index("(")]
         if func in self.functions:            
             if '=' not in operation[operation.index("(")+1:operation.rfind(")")]:
-                tokens = re.findall('\"[^,]+\"|.*\(.*\)|[\m-\w\.]+', operation[operation.index("(")+1:operation.rfind(")")])
+                tokens = re.findall('\"[^,]+\"|.*\(.*\)|[\m\w\.]+', operation[operation.index("(")+1:operation.rfind(")")])
                 args = []
                 for token in tokens:
                     if "(" in token:
