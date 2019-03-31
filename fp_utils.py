@@ -36,7 +36,9 @@ def printMessage(msg, msg_type):
 
 ###---process C++ lines-----------------------------------------------
 def processLines(lines):
-    """Process single lines of C++ source code. Useful for on-the-fly style settings"""
+    """
+    Process single lines of C++ source code. Useful for on-the-fly style settings
+    """
     
     for line in lines:
         ROOT.gROOT.ProcessLine(line)

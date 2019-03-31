@@ -17,21 +17,19 @@ from plot_manager import *
 from tree_manager import *
 
 
-### MAIN ###
-if __name__ == "__main__":
+def setupROOT():
+    """
+    Set ROOT to bacth mode and load CfgManager lib
+    """
     
     ROOT.gROOT.SetBatch(True)
     if ROOT.gSystem.Load("libCFGMan.so") == -1:
         ROOT.gSystem.Load("CfgManager/lib/libCFGMan.so")
-    
-    parser = argparse.ArgumentParser (description = 'Draw plots from ROOT files')
-    parser.add_argument('-p', '--preset', type=str, default='', help='preset option passed to the config parser')
-    parser.add_argument('-m', '--mod', type=str, default='', help='config file modifiers')
-    parser.add_argument('-c', '--cfg', default='', help='cfg file')
-    parser.add_argument('--make-trees', action='store_true', help='recreate every TTree defined in draw.trees')
-    parser.add_argument('--debug', action='store_true', help='print debug information')
-    
-    cmd_opts = parser.parse_args()
+
+def draw(cmd_opts=None):
+    """
+    FuriousPlotter main loop    
+    """
 
     cfg = ROOT.CfgManager()
     if cmd_opts.preset != "":
@@ -65,8 +63,8 @@ if __name__ == "__main__":
     processLines(plugins["line"])
     for plugin in plugins["py"]:
         plugin_module = importlib.import_module(plugin)
-        for key, func in getattr(plugin_module, 'dictionary').items():
-            plugin_funcs[key] = func
+        for func_name in getattr(plugin_module, 'FPOperations'):
+            plugin_funcs[func_name] = getattr(plugin_module, func_name)
     for macro in plugins["C"]:
         ROOT.gROOT.LoadMacro(macro) 
     for lib in plugins["so"]:
@@ -100,4 +98,20 @@ if __name__ == "__main__":
     if cfg.OptExist("draw.postProcCommands"):
         for command in cfg.GetOpt(vstring)("draw.postProcCommands"):
             os.system(command)
-            
+
+    
+### MAIN ###
+if __name__ == "__main__":
+    
+    setupROOT()
+    
+    parser = argparse.ArgumentParser (description = 'Draw plots from ROOT files')
+    parser.add_argument('-p', '--preset', type=str, default='', help='preset option passed to the config parser')
+    parser.add_argument('-m', '--mod', type=str, default='', help='config file modifiers')
+    parser.add_argument('-c', '--cfg', default='', help='cfg file')
+    parser.add_argument('--make-trees', action='store_true', help='recreate every TTree defined in draw.trees')
+    parser.add_argument('--debug', action='store_true', help='print debug information')
+    
+    cmd_opts = parser.parse_args()
+
+    draw(cmd_opts=cmd_opts)
