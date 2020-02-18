@@ -85,7 +85,7 @@ def draw(cmd_opts=None):
     if cfg.OptExist("draw.plots"):
         for plot_name in cfg.GetOpt(vstring)("draw.plots"):
             printMessage("Drawing <"+colors.CYAN+plot_name+colors.DEFAULT+">", 1)        
-            plot = FPPlot(plot_name, cfg, plugin_funcs)
+            plot = FPPlot(plot_name, cfg, plugin_funcs, cmd_opts.force_update)
             output = copy.deepcopy(plot.getOutput())
             del plot
             #---write output in parallel
@@ -109,6 +109,7 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--preset', type=str, default='', help='preset option passed to the config parser')
     parser.add_argument('-m', '--mod', type=str, default='', help='config file modifiers')
     parser.add_argument('-c', '--cfg', default='', help='cfg file')
+    parser.add_argument('-f', '--force-update', action='store_true', default=False, help='force plots update')
     parser.add_argument('--make-trees', action='store_true', help='recreate every TTree defined in draw.trees')
     parser.add_argument('--debug', action='store_true', help='print debug information')
     

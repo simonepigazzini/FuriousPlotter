@@ -411,13 +411,33 @@ def MakeHistoErrors(srcs, values="", errors=""):
         h_tmp.SetPointError(xbin-1, 0, srcs[errors].GetBinContent(xbin))
 
     return h_tmp
-                          
+
+def ShowOverflowContent(srcs, name=""):
+    """
+    Add overflow bin content to last bin and remove overflow content.
+    Implemented only for TH1
+
+    :param name: histogram name
+    :type name: str
+    :return: modified histogram. 
+    """
+
+    h = srcs[name]
+    if 'TH1' not in h.ClassName():
+        printMessage("Warning: input to ShowOverflowContent is not a TH1 object. Object is not modified", 0)
+    else:
+        h.SetBinContent(h.GetNbinsX(), h.GetBinContent(h.GetNbinsX())+h.GetBinContent(h.GetNbinsX()+1))
+        h.SetBinError(h.GetNbinsX(), ROOT.TMath.Sqrt(pow(h.GetBinError(h.GetNbinsX()), 2)+pow(h.GetBinError(h.GetNbinsX()+1),2)))
+
+    return h
+    
 FPOperations = [
     'Add', 'Sub', 'Mul', 'Div', 'Pow', 'Eff',
     'TH2toTH1', 'Project',
     'FitSlicesX', 'FitSlicesY',
     'QuantileBinning', 'QuantileProf',
     'SpectrumAwareGraph',
-    'MakeHistoErrors'
+    'MakeHistoErrors',
+    'ShowOverflowContent'
 ]
 

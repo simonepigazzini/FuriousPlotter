@@ -9,6 +9,7 @@ import copy
 import ctypes
 import ROOT
 
+from fp_plugins.yoda_reader import *
 from fp_utils import *
 from array import array
 from collections import OrderedDict as odict
@@ -19,17 +20,18 @@ class FPPlot:
     """Main class: contains all the objects belonging to a plot instance"""
 
     ###---init function-----------------------------------------------
-    def __init__(self, plot_name, cfg, plugin_funcs):
-        self.basedir    = ROOT.gDirectory.CurrentDirectory()
-        self.name       = plot_name
-        self.cfg        = cfg
-        self.output     = {}
-        self.files      = {}        
-        self.histos     = odict()
-        self.updated    = {}
-        self.pads       = odict()        
-        self.functions  = plugin_funcs
-        self.outDir     = self.cfg.GetOpt("draw.outDir") if self.cfg.OptExist("draw.outDir") else "plots"
+    def __init__(self, plot_name, cfg, plugin_funcs, force_update=False):
+        self.basedir     = ROOT.gDirectory.CurrentDirectory()
+        self.name        = plot_name
+        self.cfg         = cfg
+        self.output      = {}
+        self.files       = {}        
+        self.histos      = odict()
+        self.updated     = {}
+        self.pads        = odict()        
+        self.functions   = plugin_funcs
+        self.forceUpdate = force_update
+        self.outDir      = self.cfg.GetOpt("draw.outDir") if self.cfg.OptExist("draw.outDir") else "plots"
         if not os.path.isdir(self.outDir):
             os.makedirs(self.outDir)
         
@@ -300,7 +302,7 @@ class FPPlot:
         """
 
         ### check if previous result is current
-        self.updated[histo_key] = self.getPreviousResult(histo_key)
+        self.updated[histo_key] = None if self.forceUpdate else self.getPreviousResult(histo_key)
         self.basedir.cd()
         if not self.updated[histo_key]:
             ### process sources
@@ -406,6 +408,15 @@ class FPPlot:
                                         replica_cnt = replica_cnt + 1
                                     primitive.SetName(primitive.GetName()+"_"+str(replica_cnt))
                                     self.basedir.Append(fobj.GetPrimitive(primitive.GetName()))
+                    ### yoda file
+                    elif ".yoda" in abs_path:
+                        if ":" in src_vect[1]:
+                            alias = src_vect[1][0:src_vect[1].find(":")]                
+                            src_vect[1] = src_vect[1].replace(alias+":", "")
+                        else:
+                            alias = src_vect[1]
+                        srcs[alias] = readYODA(abs_path, src_vect[1])
+                        src_vect.erase(src_vect.begin()+1)
                     ### txt file (load data with TTree::ReadFile). TTree is stored both in self.files and srcs
                     else:
                         self.files[abs_path] = ROOT.TTree()
@@ -417,10 +428,8 @@ class FPPlot:
                         self.files[abs_path].ReadFile(abs_path, branch_desc)
                         srcs[alias] = self.files[abs_path]
                         src_vect.erase(src_vect.begin()+1)
-                if "File" in self.files[abs_path].ClassName():
+                if abs_path in self.files and  "File" in self.files[abs_path].ClassName():
                     histo_file = self.files[abs_path]
-                else:
-                    srcs[alias] = self.files[abs_path]
             # not a file: try to get it from current open file
             elif histo_file and histo_file.Get(src_vect[0]):
                 srcs[alias] = histo_file.Get(src_vect[0])

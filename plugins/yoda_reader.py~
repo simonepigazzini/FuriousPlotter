@@ -1,0 +1,38 @@
+import yoda
+import numpy as np
+
+def readYODA(file=None, key=None):
+    """
+    Read histogram from yoda file
+
+    :param file: path to yoda file.
+    :type args: str
+    :param key: histogram name.
+    :type key: str
+    :param alias: histogram alias used inside FP
+    """
+
+    if not file or not key:
+        raise Exception("file and key are mandatory arguments, please specify both")
+
+    h_yoda = yoda.read(file)[key]
+
+    if isinstance(h_yoda, yoda.Histo1D):
+        #---ROOT histogram
+        h_root = ROOT.TH1F(key, "", len(h_yoda.xMins()), np.append(h_yoda.xMins(), h_yoda.yMaxs()[-1]))
+
+        #---fill visible bins
+        for i, v in enumerate(h_yoda.yVals()):
+            h_root.SetBinContent(v)
+            h_root.SetBinError(h_yoda.yErrs()[i])
+
+        #---fill overflow and underflow
+        h_root.SetBinContent(0, h_yoda.underflow.sumW)
+        h_root.SetBinError(0, h_yoda.underflow.errW)
+        h_root.SetBinContent(h_root.GetNbinsX()+1, h_yoda.overflow.sumW)
+        h_root.SetBinError(h_root.GetNbinsX()+1, h_yoda.overflow.errW)        
+            
+    else:
+        raise Exception("Histogram type not supported: only Histo1D are currently supported")
+
+    return h_root
