@@ -25,7 +25,7 @@ class FPTreeCreator:
         
         ROOT.gSystem.Load("DynamicTTreeDict.so")
 
-        for tkey in (self.cfg.GetOpt(vstring)(key+".inputs") if self.cfg.OptExist(key+".inputs") else []):
+        for tkey in (self.cfg.GetOpt[stdvstring](key+".inputs") if self.cfg.OptExist(key+".inputs") else []):
             self.loadTree(tkey)
 
         self.basedir.cd()
@@ -44,7 +44,7 @@ class FPTreeCreator:
         data_table = '#define DATA_TABLE '
         data_vect_table = '#define DATA_VECT_TABLE '
         data_class_table = '#define DATA_CLASS_TABLE '
-        for line in self.cfg.GetOpt(vstring)(self.key+".variables") if self.cfg.OptExist(self.key+".variables") else []:
+        for line in self.cfg.GetOpt[stdvstring](self.key+".variables") if self.cfg.OptExist(self.key+".variables") else []:
             v_name = self.readVariable(line)
             v_type = self.variables[v_name]['type']
             v_len = self.variables[v_name]['size']
@@ -63,7 +63,7 @@ class FPTreeCreator:
         if not self.cfg.OptExist(self.key+".process"):
             print("TODO")
         else:
-            proc_lines = self.cfg.GetOpt(vstring)(self.key+".process")
+            proc_lines = self.cfg.GetOpt[stdvstring](self.key+".process")
             proc = '\n'.join(proc_lines)
             ROOT.gROOT.ProcessLine(proc)
             
@@ -107,7 +107,7 @@ class FPTreeCreator:
         branches = []
         forced_branches_size = {}
         if self.cfg.OptExist(key+".branches"):
-            branches_names = self.cfg.GetOpt(vstring)(key+".branches")
+            branches_names = self.cfg.GetOpt[stdvstring](key+".branches")
             for branch in branches_names:
                 b_info = branch.split()
                 branches.append(ttree.GetBranch(b_info[0]))

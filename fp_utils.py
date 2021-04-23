@@ -10,7 +10,8 @@ import multiprocessing as mp
 import ROOT
 
 from ROOT import std
-vstring = std.vector(std.string)
+stdvstring = "std::vector<std::string>"
+stdstring = "std::string"
 
 class colors:
     GREEN = "\033[1;32m"

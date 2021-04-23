@@ -12,6 +12,8 @@ import ROOT
 #---Prevent TApplication from showing its useless help message...
 ROOT.PyConfig.IgnoreCommandLineOptions = True
 
+sys.path.append('/usr/lib/root')
+
 from fp_utils import *
 from plot_manager import *
 from tree_manager import *
@@ -51,7 +53,8 @@ def draw(cmd_opts=None):
     plugin_funcs = {}
     plugins = {"py" : ['operations'], "C" : [], "so" : [], "line" : []}    
     if cfg.OptExist("draw.plugins"):        
-        for plugin in cfg.GetOpt(vstring)("draw.plugins"):
+        for plugin in cfg.GetOpt[stdvstring]("draw.plugins"):
+            plugin = str(plugin)
             if ".py" == plugin[-3:]:
                 plugins["py"].append(plugin[:-3])
             elif ".C" == plugin[-2:] or ".C+" == plugin[-3:]:
@@ -72,8 +75,8 @@ def draw(cmd_opts=None):
 
     #---Create trees with FPTreeCreator
     if cmd_opts.make_trees and cfg.OptExist("draw.trees"):
-        for tree_name in cfg.GetOpt(vstring)("draw.trees"):
-            printMessage("Creating <"+colors.CYAN+tree_name+colors.DEFAULT+"> TTree", 1)        
+        for tree_name in cfg.GetOpt[stdvstring]("draw.trees"):
+            #printMessage("Creating <"+colors.CYAN+tree_name+colors.DEFAULT+"> TTree", 1)        
             FPTreeCreator(cfg, tree_name, plugin_funcs)
 
     #---Make plots with FPPlots
@@ -83,8 +86,8 @@ def draw(cmd_opts=None):
     ROOT.gROOT.ProcessLine("TLine line;")
     ROOT.gROOT.ProcessLine("TLatex latex;")
     if cfg.OptExist("draw.plots"):
-        for plot_name in cfg.GetOpt(vstring)("draw.plots"):
-            printMessage("Drawing <"+colors.CYAN+plot_name+colors.DEFAULT+">", 1)        
+        for plot_name in cfg.GetOpt[stdvstring]("draw.plots"):
+            #printMessage("Drawing <"+colors.CYAN+plot_name+colors.DEFAULT+">", 1)        
             plot = FPPlot(plot_name, cfg, plugin_funcs, cmd_opts.force_update)
             output = copy.deepcopy(plot.getOutput())
             del plot
@@ -96,7 +99,7 @@ def draw(cmd_opts=None):
         
     #---Post-proc
     if cfg.OptExist("draw.postProcCommands"):
-        for command in cfg.GetOpt(vstring)("draw.postProcCommands"):
+        for command in cfg.GetOpt[stdvstring]("draw.postProcCommands"):
             os.system(command)
 
     

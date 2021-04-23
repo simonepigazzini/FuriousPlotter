@@ -49,7 +49,7 @@ class FPPlot:
 
         #---if no pad is specified, only the default global canvas is created
         #   histos defined under plot scope are attached to it
-        pads_names = self.cfg.GetOpt(vstring)(self.name+".pads") if self.cfg.OptExist(self.name+".pads") else []
+        pads_names = self.cfg.GetOpt[stdvstring](self.name+".pads") if self.cfg.OptExist(self.name+".pads") else []
 
         self.createPad(self.name)
         for pad_name in pads_names:
@@ -60,12 +60,12 @@ class FPPlot:
                 self.createPad(pad_key)
                 pad = self.pads[pad_key]
             ### cumpute pad rescaling if sub-frame
-            pad_size = self.cfg.GetOpt(vstring)(pad_key+".size") if self.cfg.OptExist(pad_key+".size") else []
+            pad_size = self.cfg.GetOpt[stdvstring](pad_key+".size") if self.cfg.OptExist(pad_key+".size") else []
             if len(pad_size) == 4:
                 pad_x_scale = float(pad_size[2])-float(pad_size[0])
                 pad_y_scale = float(pad_size[3])-float(pad_size[1])
             first_histo = 0
-            for histo in self.cfg.GetOpt(vstring)(pad_key+".histos") if self.cfg.OptExist(pad_key+".histos") else []:
+            for histo in self.cfg.GetOpt[stdvstring](pad_key+".histos") if self.cfg.OptExist(pad_key+".histos") else []:
                 draw_opt = "same" if pad.GetListOfPrimitives().GetSize() > 0 else ""
                 histo_key = pad_key+"."+histo
                 if histo_key not in self.histos.keys():
@@ -113,7 +113,7 @@ class FPPlot:
                 self.autoRescale(pad, False, x_scale=pad_x_scale, y_scale=pad_y_scale)                
                 
         ###---if option 'saveAs' is specified override global option
-        save_opt = self.cfg.GetOpt(vstring)(self.name+".saveAs") if self.cfg.OptExist(self.name+".saveAs") else self.cfg.GetOpt(vstring)("draw.saveAs")
+        save_opt = self.cfg.GetOpt[stdvstring](self.name+".saveAs") if self.cfg.OptExist(self.name+".saveAs") else self.cfg.GetOpt[stdvstring]("draw.saveAs")
         ###---save canvas if not disabled
         if "goff" not in save_opt:
             self.savePlotAs(save_opt)
@@ -125,7 +125,7 @@ class FPPlot:
         self.basedir.cd()
         
         # get constructor size parameters        
-        size = self.cfg.GetOpt(vstring)(pad_name+".size") if self.cfg.OptExist(pad_name+".size") else []
+        size = self.cfg.GetOpt[stdvstring](pad_name+".size") if self.cfg.OptExist(pad_name+".size") else []
         if pad_name == self.name:
             if len(size) == 0:                        
                 self.pads[pad_name] = ROOT.TCanvas(pad_name.replace(".", "_"))
@@ -146,7 +146,7 @@ class FPPlot:
         "Build legend for current plot. Entry order is fixed by cfg file"
 
         if self.cfg.OptExist(pad_key+".legendXY"):
-            pos = self.cfg.GetOpt(vstring)(pad_key+".legendXY")
+            pos = self.cfg.GetOpt[stdvstring](pad_key+".legendXY")
         else:
             pos = [0.6, 0.6, 0.9, 0.9]
         header = self.cfg.GetOpt(pad_key+".legendHeader") if self.cfg.OptExist(pad_key+".legendHeader") else ""
@@ -160,8 +160,8 @@ class FPPlot:
         lg.SetHeader(header)
         lg.SetFillStyle(self.cfg.GetOpt(int)(pad_key+".legendStyle") if self.cfg.OptExist(pad_key+".legendStyle") else 0)
 
-        entries = self.cfg.GetOpt(vstring)(pad_key+".legendEntries") if self.cfg.OptExist(pad_key+".legendEntries") else vstring()
-        for histo in self.cfg.GetOpt(vstring)(pad_key+".histos") if self.cfg.OptExist(pad_key+".histos") else []:
+        entries = self.cfg.GetOpt[stdvstring](pad_key+".legendEntries") if self.cfg.OptExist(pad_key+".legendEntries") else vstring()
+        for histo in self.cfg.GetOpt[stdvstring](pad_key+".histos") if self.cfg.OptExist(pad_key+".histos") else []:
             entries.push_back(pad_key+"."+histo)
         ###---loop over entries and create an entry in the TLegend object
         for entry in entries:
@@ -222,7 +222,7 @@ class FPPlot:
 
         ###---parse description string
         description = []
-        for line in self.cfg.GetOpt(vstring)(self.name+".description") if self.cfg.OptExist(self.name+".description") else []:
+        for line in self.cfg.GetOpt[stdvstring](self.name+".description") if self.cfg.OptExist(self.name+".description") else []:
             description.append(self.computeValues(line))
 
         self.output = {'canvas'      : self.pads[self.name],
@@ -271,7 +271,7 @@ class FPPlot:
                 if not oldcfg.CompareOption(self.cfg, histo_key+critical_opt):
                     return False
             ### check if sources are more recent than results
-            for src in self.cfg.GetOpt(vstring)(histo_key+".src"):
+            for src in self.cfg.GetOpt[stdvstring](histo_key+".src"):
                 path = expand_path(src)
                 if os.path.isfile(path) and os.path.getmtime(path) > oldresult_time:
                     return False
@@ -381,7 +381,7 @@ class FPPlot:
 
         srcs = {}
         histo_file = 0
-        src_vect = self.cfg.GetOpt(vstring)(histo_key+".src")
+        src_vect = self.cfg.GetOpt[stdvstring](histo_key+".src")
         while len(src_vect) > 0:
             if ":" in src_vect[0]:
                 alias = src_vect[0][0:src_vect[0].find(":")]                
@@ -475,7 +475,7 @@ class FPPlot:
 
         ###---build histograms with fixed size bins 
         if self.cfg.OptExist(histo_key+".bins"):
-            bins = self.cfg.GetOpt(vstring)(histo_key+".bins")
+            bins = self.cfg.GetOpt[stdvstring](histo_key+".bins")
             if len(bins) == 3:
                 tmp_histo = ROOT.TH1F("h_"+histo_obj.GetName(), histo_key, eval_i(bins[0]), eval_f(bins[1]), eval_f(bins[2]))
             elif len(bins) == 5:
@@ -507,7 +507,7 @@ class FPPlot:
                 
         ###---build histograms with variable size bins
         elif self.cfg.OptExist(histo_key+".dbins"):
-            dbins = self.cfg.GetOpt(vstring)(histo_key+".dbins")
+            dbins = self.cfg.GetOpt[stdvstring](histo_key+".dbins")
             if len(dbins) == 1 and self.cfg.OptExist(dbins[0]):
                 vbins = self.cfg.GetOpt(std.vector(float))(dbins[0])
                 nbins = vbins.size()-1
@@ -553,7 +553,7 @@ class FPPlot:
         var = self.cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
         cut = ""
         if self.cfg.OptExist(histo_key+".cut"):
-            for next_cut in self.cfg.GetOpt(vstring)(histo_key+".cut"):                
+            for next_cut in self.cfg.GetOpt[stdvstring](histo_key+".cut"):                
                 cut += next_cut
         histo_obj.Draw(var, cut, "goff")
 
@@ -580,7 +580,7 @@ class FPPlot:
 
         obj_definition_lines = []
         if self.cfg.OptExist(key+".customize"):
-            for line in self.cfg.GetOpt(vstring)(key+".customize"):
+            for line in self.cfg.GetOpt[stdvstring](key+".customize"):
                 line = self.computeValues(line)
                 if line[:6] != "macro:":
                     line = "this->"+line if line[:4] != "this" else line
