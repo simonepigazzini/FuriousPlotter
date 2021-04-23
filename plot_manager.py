@@ -9,7 +9,7 @@ import copy
 import ctypes
 import ROOT
 
-from fp_plugins.yoda_reader import *
+from plugins.yoda_reader import *
 from fp_utils import *
 from array import array
 from collections import OrderedDict as odict
