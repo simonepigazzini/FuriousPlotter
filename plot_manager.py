@@ -71,7 +71,7 @@ class FPPlot:
                 if histo_key not in self.histos.keys():
                     self.processHistogram(histo_key)
                 self.customize(histo_key, self.histos[histo_key])
-                draw_opt += self.cfg.GetOpt(std.string)(histo_key+".drawOptions") if self.cfg.OptExist(histo_key+".drawOptions") else ""
+                draw_opt += self.cfg.GetOpt[stdstring](histo_key+".drawOptions") if self.cfg.OptExist(histo_key+".drawOptions") else ""
                 if 'NORM' in draw_opt or 'norm' in draw_opt:
                     if "TH1" in self.histos[histo_key].ClassName():
                         self.histos[histo_key].Scale(1./self.histos[histo_key].GetEntries())
@@ -166,10 +166,10 @@ class FPPlot:
         ###---loop over entries and create an entry in the TLegend object
         for entry in entries:
             if self.cfg.OptExist(entry+".legendEntry"):
-                label = self.cfg.GetOpt(std.string)(entry+".legendEntry", 0)
+                label = self.cfg.GetOpt[stdstring](entry+".legendEntry", 0)
                 label = self.computeValues(label)                                
-                opt = self.cfg.GetOpt(std.string)(entry+".legendEntry", 1) if self.cfg.OptExist(entry+".legendEntry", 1) else "lpf"
-                entry = self.cfg.GetOpt(std.string)(entry+".objName") if self.cfg.OptExist(entry+".objName") else entry
+                opt = self.cfg.GetOpt[stdstring](entry+".legendEntry", 1) if self.cfg.OptExist(entry+".legendEntry", 1) else "lpf"
+                entry = self.cfg.GetOpt[stdstring](entry+".objName") if self.cfg.OptExist(entry+".objName") else entry
                 lg.AddEntry(self.histos[entry], label, opt)
 
         return lg
@@ -323,7 +323,7 @@ class FPPlot:
 
             if self.cfg.OptExist(histo_key+".operation"):
                 #---build line to be processed, replacing aliases        
-                operation = self.cfg.GetOpt(std.string)(histo_key+".operation")
+                operation = self.cfg.GetOpt[stdstring](histo_key+".operation")
                 operation = operation.replace(" ", "")
                 self.histos[histo_key] = self.operationParser(operation, srcs)
                 self.histos[histo_key].SetName(histo_key.replace(".", "_"))
@@ -448,7 +448,7 @@ class FPPlot:
                 # function (TF1) definition
                 func = ROOT.TF1(alias, src_vect[0])
                 if func.IsValid():
-                    frange = self.cfg.GetOpt(std.vector(float))(histo_key+".bins") if self.cfg.OptExist(histo_key+".bins") else []
+                    frange = self.cfg.GetOpt[stdvfloat](histo_key+".bins") if self.cfg.OptExist(histo_key+".bins") else []
                     if len(frange) > 1:
                         func.SetRange(frange[0], frange[1])
                     func.SetLineWidth(2)
@@ -509,17 +509,17 @@ class FPPlot:
         elif self.cfg.OptExist(histo_key+".dbins"):
             dbins = self.cfg.GetOpt[stdvstring](histo_key+".dbins")
             if len(dbins) == 1 and self.cfg.OptExist(dbins[0]):
-                vbins = self.cfg.GetOpt(std.vector(float))(dbins[0])
+                vbins = self.cfg.GetOpt[stdvfloat](dbins[0])
                 nbins = vbins.size()-1
                 tmp_histo = ROOT.TH1F("h_"+histo_obj.GetName(), histo_key, nbins, vbins.data())
             elif len(dbins) == 2 and self.cfg.OptExist(dbins[0]) and self.cfg.OptExist(dbins[1]):
-                vxbins = self.cfg.GetOpt(std.vector(float))(dbins[0])
+                vxbins = self.cfg.GetOpt[stdvfloat](dbins[0])
                 nxbins = vxbins.size()-1
-                vybins = self.cfg.GetOpt(std.vector(float))(dbins[1])
+                vybins = self.cfg.GetOpt[stdvfloat](dbins[1])
                 nybins = vybins.size()-1
                 tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, nxbins, vxbins.data(), nybins, vybins.data())
             elif len(dbins) == 3 and self.cfg.OptExist(dbins[0]):
-                vbins = self.cfg.GetOpt(std.vector(float))(dbins[0])
+                vbins = self.cfg.GetOpt[stdvfloat](dbins[0])
                 vxbins = array('d')
                 for value in vbins: 
                     vxbins.append(value)
@@ -527,7 +527,7 @@ class FPPlot:
                 tmp_histo = ROOT.TProfile("h_"+histo_obj.GetName(), histo_key, nbins, vxbins, eval_f(dbins[1]), eval_f(dbins[2]))
             elif len(dbins) == 4:
                 if self.cfg.OptExist(dbins[0]):
-                    values = self.cfg.GetOpt(std.vector(float))(dbins[0])
+                    values = self.cfg.GetOpt[stdvfloat](dbins[0])
                     vxbins = array('d')
                     for value in values: 
                         vxbins.append(value)
@@ -535,7 +535,7 @@ class FPPlot:
                     tmp_histo = ROOT.TH2F("h_"+histo_obj.GetName(), histo_key, nxbins, vxbins,
                                           eval_i(dbins[1]), eval_f(dbins[2]), eval_f(dbins[3]))
                 elif self.cfg.OptExist(dbins[3]):
-                    values = self.cfg.GetOpt(std.vector(float))(dbins[0])
+                    values = self.cfg.GetOpt[stdvfloat](dbins[0])
                     vybins = array('d')
                     for value in values: 
                         vybins.append(value)
@@ -550,7 +550,7 @@ class FPPlot:
         # draw histo
         if 'name' not in locals():
             name = tmp.GetName() if 'tmp' in locals() else tmp_histo.GetName()
-        var = self.cfg.GetOpt(std.string)(histo_key+".var")+">>"+name
+        var = self.cfg.GetOpt[stdstring](histo_key+".var")+">>"+name
         cut = ""
         if self.cfg.OptExist(histo_key+".cut"):
             for next_cut in self.cfg.GetOpt[stdvstring](histo_key+".cut"):                

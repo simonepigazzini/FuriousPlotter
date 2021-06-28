@@ -76,7 +76,7 @@ def draw(cmd_opts=None):
     #---Create trees with FPTreeCreator
     if cmd_opts.make_trees and cfg.OptExist("draw.trees"):
         for tree_name in cfg.GetOpt[stdvstring]("draw.trees"):
-            #printMessage("Creating <"+colors.CYAN+tree_name+colors.DEFAULT+"> TTree", 1)        
+            printMessage("Creating <"+colors.CYAN+tree_name+colors.DEFAULT+"> TTree", 1)        
             FPTreeCreator(cfg, tree_name, plugin_funcs)
 
     #---Make plots with FPPlots
@@ -87,7 +87,7 @@ def draw(cmd_opts=None):
     ROOT.gROOT.ProcessLine("TLatex latex;")
     if cfg.OptExist("draw.plots"):
         for plot_name in cfg.GetOpt[stdvstring]("draw.plots"):
-            #printMessage("Drawing <"+colors.CYAN+plot_name+colors.DEFAULT+">", 1)        
+            printMessage("Drawing <"+colors.CYAN+plot_name+colors.DEFAULT+">", 1)        
             plot = FPPlot(plot_name, cfg, plugin_funcs, cmd_opts.force_update)
             output = copy.deepcopy(plot.getOutput())
             del plot

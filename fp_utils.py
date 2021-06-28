@@ -11,6 +11,7 @@ import ROOT
 
 from ROOT import std
 stdvstring = "std::vector<std::string>"
+stdvfloat = "std::vector<float>"
 stdstring = "std::string"
 
 class colors:

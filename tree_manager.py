@@ -37,8 +37,8 @@ class FPTreeCreator:
     def createOutTree(self):
         """Create the new TTree"""
 
-        cname = self.cfg.GetOpt(std.string)(self.key+".class") if self.cfg.OptExist(self.key+".class") else 'fp_'+self.key.replace(".", "_")
-        name = self.cfg.GetOpt(std.string)(self.key+".treeName") if self.cfg.OptExist(self.key+".treeName") else 't_'+self.key.replace(".", "_")
+        cname = self.cfg.GetOpt[stdstring](self.key+".class") if self.cfg.OptExist(self.key+".class") else 'fp_'+self.key.replace(".", "_")
+        name = self.cfg.GetOpt[stdstring](self.key+".treeName") if self.cfg.OptExist(self.key+".treeName") else 't_'+self.key.replace(".", "_")
 
         ###---Load list of variables
         data_table = '#define DATA_TABLE '
@@ -68,7 +68,7 @@ class FPTreeCreator:
             ROOT.gROOT.ProcessLine(proc)
             
         new_tree = self.basedir.Get(name)
-        tfile = ROOT.TFile.Open(self.cfg.GetOpt(std.string)(self.key+".file"), 'RECREATE')
+        tfile = ROOT.TFile.Open(self.cfg.GetOpt[stdstring](self.key+".file"), 'RECREATE')
         new_tree.SetDirectory(tfile)
         new_tree.Write()
         tfile.Close()
@@ -95,9 +95,9 @@ class FPTreeCreator:
     def loadTree(self, key):
         """Reads existing tree and creates a DynamicTree for each one"""
 
-        cname = self.cfg.GetOpt(std.string)(key+".class") if self.cfg.OptExist(key+".class") else 'fp_'+key.replace(".", "_")
-        tname = self.cfg.GetOpt(std.string)(key+".treeName")
-        tfile = ROOT.TFile.Open(self.cfg.GetOpt(std.string)(key+".file"), 'READ')
+        cname = self.cfg.GetOpt[stdstring](key+".class") if self.cfg.OptExist(key+".class") else 'fp_'+key.replace(".", "_")
+        tname = self.cfg.GetOpt[stdstring](key+".treeName")
+        tfile = ROOT.TFile.Open(self.cfg.GetOpt[stdstring](key+".file"), 'READ')
         self.files.append(tfile)
         ttree = tfile.Get(tname)
         ttree.SetDirectory(self.basedir)
