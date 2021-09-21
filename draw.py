@@ -1,4 +1,4 @@
-#!/bin/python
+#!/usr/bin/env python3
 
 import sys
 import re
@@ -9,31 +9,22 @@ import copy
 import subprocess
 import importlib
 import ROOT
-#---Prevent TApplication from showing its useless help message...
-ROOT.PyConfig.IgnoreCommandLineOptions = True
-
-sys.path.append('/usr/lib/root')
+import cfgmanager
 
 from fp_utils import *
 from plot_manager import *
 from tree_manager import *
 
-
-def setupROOT():
-    """
-    Set ROOT to bacth mode and load CfgManager lib
-    """
-    
-    ROOT.gROOT.SetBatch(True)
-    if ROOT.gSystem.Load("libCFGMan.so") == -1:
-        ROOT.gSystem.Load("CfgManager/lib/libCFGMan.so")
+ROOT.PyConfig.IgnoreCommandLineOptions = True
+ROOT.gROOT.SetBatch(True)
+ROOT.PyConfig.ShutDown = False
 
 def draw(cmd_opts=None):
     """
     FuriousPlotter main loop    
     """
 
-    cfg = ROOT.CfgManager()
+    cfg = cfgmanager.CfgManager()
     if cmd_opts.preset != "":
         for preset in cmd_opts.preset.split(','):
             print(preset)
@@ -53,7 +44,7 @@ def draw(cmd_opts=None):
     plugin_funcs = {}
     plugins = {"py" : ['operations'], "C" : [], "so" : [], "line" : []}    
     if cfg.OptExist("draw.plugins"):        
-        for plugin in cfg.GetOpt[stdvstring]("draw.plugins"):
+        for plugin in cfg.GetVOpt("draw.plugins"):
             plugin = str(plugin)
             if ".py" == plugin[-3:]:
                 plugins["py"].append(plugin[:-3])
@@ -75,7 +66,7 @@ def draw(cmd_opts=None):
 
     #---Create trees with FPTreeCreator
     if cmd_opts.make_trees and cfg.OptExist("draw.trees"):
-        for tree_name in cfg.GetOpt[stdvstring]("draw.trees"):
+        for tree_name in cfg.GetVOpt("draw.trees"):
             printMessage("Creating <"+colors.CYAN+tree_name+colors.DEFAULT+"> TTree", 1)        
             FPTreeCreator(cfg, tree_name, plugin_funcs)
 
@@ -86,11 +77,10 @@ def draw(cmd_opts=None):
     ROOT.gROOT.ProcessLine("TLine line;")
     ROOT.gROOT.ProcessLine("TLatex latex;")
     if cfg.OptExist("draw.plots"):
-        for plot_name in cfg.GetOpt[stdvstring]("draw.plots"):
+        for plot_name in cfg.GetVOpt("draw.plots"):
             printMessage("Drawing <"+colors.CYAN+plot_name+colors.DEFAULT+">", 1)        
             plot = FPPlot(plot_name, cfg, plugin_funcs, cmd_opts.force_update)
             output = copy.deepcopy(plot.getOutput())
-            del plot
             #---write output in parallel
             writeOutput(output, write_procs)
     #---close write parallel processes
@@ -99,15 +89,12 @@ def draw(cmd_opts=None):
         
     #---Post-proc
     if cfg.OptExist("draw.postProcCommands"):
-        for command in cfg.GetOpt[stdvstring]("draw.postProcCommands"):
+        for command in cfg.GetVOpt("draw.postProcCommands"):
             os.system(command)
 
     
 ### MAIN ###
 if __name__ == "__main__":
-    
-    setupROOT()
-    
     parser = argparse.ArgumentParser (description = 'Draw plots from ROOT files')
     parser.add_argument('-p', '--preset', type=str, default='', help='preset option passed to the config parser')
     parser.add_argument('-m', '--mod', type=str, default='', help='config file modifiers')
