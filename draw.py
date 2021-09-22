@@ -37,7 +37,7 @@ def draw(cmd_opts=None):
             cfg.ParseConfigString(config)
 
     if cmd_opts.debug:
-        cfg.Print()    
+        print(cfg)
         
     #---Load py/C++ plugins, proccess all lines before
     sys.path.insert(1, os.getcwd())

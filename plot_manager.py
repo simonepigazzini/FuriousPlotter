@@ -232,7 +232,7 @@ class FPPlot:
                        #'cfg'         : self.cfg.GetSubCfg(self.name)
                        }
 
-        ###---cleanup
+        ###---cleanup                
         # for path, ofile in self.files.items():
         #     if ofile.ClassName() == "TFile":
         #         ofile.Close()
@@ -302,7 +302,7 @@ class FPPlot:
         """
 
         ### check if previous result is current
-        self.updated[histo_key] = None if self.forceUpdate else self.getPreviousResult(histo_key)
+        self.updated[histo_key] = None # if self.forceUpdate else self.getPreviousResult(histo_key)
         self.basedir.load().cd()
         if not self.updated[histo_key]:
             ### process sources
